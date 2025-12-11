@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Image, Code, AppWindow, Video, Sparkles, Menu, Info } from "lucide-react";
-import { LevaoLogo } from "@/components/LevaoLogo";
+import { MessageSquare, Image, Code, Sparkles, Menu, Info } from "lucide-react";
+import { LepanLogo } from "@/components/LepanLogo";
 import { SparkleBackground } from "@/components/SparkleEffect";
 import { FeatureCard } from "@/components/FeatureCard";
 import { ChatInterface } from "@/components/ChatInterface";
-import { ModeSelector } from "@/components/ModeSelector";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations, Message } from "@/hooks/useConversations";
@@ -37,26 +36,15 @@ const features = [
     title: "Code Assistant",
     description: "Write, debug, and optimize code across multiple programming languages.",
   },
-  {
-    id: "apps",
-    icon: AppWindow,
-    title: "App Builder",
-    description: "Build functional applications with AI guidance and code generation.",
-  },
-  {
-    id: "video",
-    icon: Video,
-    title: "Video Animation",
-    description: "Animate and create video content with AI-powered tools.",
-  },
 ];
 
 const Index = () => {
-  const [activeMode, setActiveMode] = useState<string | null>(null);
+  const [activeMode, setActiveMode] = useState<string>("chat");
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [showLanding, setShowLanding] = useState(false);
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const {
@@ -74,12 +62,37 @@ const Index = () => {
     }
   }, [user, authLoading, navigate]);
 
+  // Auto-start chat when user is logged in
+  useEffect(() => {
+    const initChat = async () => {
+      if (user && !convLoading && !activeConversationId) {
+        // Check if there are existing conversations
+        if (conversations.length > 0) {
+          // Load the most recent conversation
+          const recentConv = conversations[0];
+          const msgs = await getMessages(recentConv.id);
+          setConversationMessages(msgs);
+          setActiveConversationId(recentConv.id);
+          setActiveMode(recentConv.mode);
+        } else {
+          // Create a new conversation
+          const conv = await createConversation("chat");
+          if (conv) {
+            setActiveConversationId(conv.id);
+            setActiveMode("chat");
+          }
+        }
+      }
+    };
+    initChat();
+  }, [user, convLoading, conversations.length]);
+
   const loadConversation = useCallback(async (id: string) => {
     const msgs = await getMessages(id);
     setConversationMessages(msgs);
     setActiveConversationId(id);
+    setShowLanding(false);
     
-    // Find the conversation to get its mode
     const conv = conversations.find((c) => c.id === id);
     if (conv) {
       setActiveMode(conv.mode);
@@ -88,8 +101,8 @@ const Index = () => {
 
   const handleSelectMode = async (mode: string) => {
     setActiveMode(mode);
+    setShowLanding(false);
     
-    // Create a new conversation for this mode
     const conv = await createConversation(mode);
     if (conv) {
       setActiveConversationId(conv.id);
@@ -104,6 +117,7 @@ const Index = () => {
       setActiveConversationId(conv.id);
       setConversationMessages([]);
       setActiveMode(mode);
+      setShowLanding(false);
     }
     setSidebarOpen(false);
   };
@@ -118,9 +132,16 @@ const Index = () => {
     if (activeConversationId === id) {
       setActiveConversationId(null);
       setConversationMessages([]);
-      setActiveMode(null);
+      // Create a new conversation after deleting
+      const conv = await createConversation("chat");
+      if (conv) {
+        setActiveConversationId(conv.id);
+        setActiveMode("chat");
+      }
     }
   };
+
+  const currentYear = new Date().getFullYear();
 
   if (authLoading || convLoading) {
     return (
@@ -136,10 +157,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen gradient-main relative overflow-hidden">
-      {/* Sparkle decorations */}
       <SparkleBackground />
 
-      {/* Sidebar */}
       <ConversationSidebar
         conversations={conversations}
         activeConversationId={activeConversationId}
@@ -167,11 +186,19 @@ const Index = () => {
               Builder Info
             </DialogTitle>
           </DialogHeader>
-          <div className="text-lg font-body text-foreground">
-            <span className="font-semibold">Built with </span>
-            Lovable AI
-            <br />
-            <span className="italic text-primary">Powered by Google Gemini</span>
+          <div className="text-lg font-body text-foreground space-y-2">
+            <p>
+              <span className="font-semibold">Built by </span>
+              <a 
+                href="https://arkadas.netlify.app" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-primary hover:underline font-semibold"
+              >
+                ARKA DAS
+              </a>
+            </p>
+            <p className="italic text-muted-foreground">Powered by Google Gemini</p>
           </div>
         </DialogContent>
       </Dialog>
@@ -188,13 +215,13 @@ const Index = () => {
         </Button>
 
         {/* Header */}
-        <header className="text-center mb-8 animate-float">
+        <header className="text-center mb-6 animate-float">
           <div className="flex flex-col items-center mb-4">
             <div className="rounded-full bg-card/40 p-2 mb-4 shadow-glow backdrop-blur-sm">
-              <LevaoLogo size="lg" />
+              <LepanLogo size="lg" />
             </div>
             <h1 className="font-display text-5xl md:text-6xl font-bold text-foreground drop-shadow-lg mb-2 tracking-wide">
-              Levao AI
+              Lepen AI
             </h1>
             <p className="font-display text-xl text-foreground/90 mb-2">
               Intelligence Illuminated
@@ -205,41 +232,14 @@ const Index = () => {
           </div>
         </header>
 
-        {activeMode ? (
-          /* Chat View */
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => {
-                  setActiveMode(null);
-                  setActiveConversationId(null);
-                  setConversationMessages([]);
-                }}
-                className="text-primary hover:text-primary/80 font-sans flex items-center gap-2 transition-colors"
-              >
-                <Sparkles className="w-4 h-4" />
-                Back to Home
-              </button>
-            </div>
-            
-            <ModeSelector activeMode={activeMode} onModeChange={handleSelectMode} />
-            
-            <ChatInterface
-              mode={activeMode}
-              conversationId={activeConversationId}
-              initialMessages={conversationMessages}
-              onSaveMessage={handleSaveMessage}
-            />
-          </div>
-        ) : (
-          /* Landing View */
+        {showLanding ? (
           <>
             {/* Feature Cards */}
             <section className="mb-8">
               <h2 className="font-display text-2xl text-center text-foreground mb-6">
                 What can I help you create?
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {features.map((feature) => (
                   <FeatureCard
                     key={feature.id}
@@ -259,15 +259,26 @@ const Index = () => {
                 className="inline-flex items-center gap-3 px-8 py-4 bg-primary text-primary-foreground font-sans text-lg rounded-xl shadow-gold hover:shadow-glow transition-all duration-300 hover:scale-105"
               >
                 <MessageSquare className="w-6 h-6" />
-                Start Chatting with Levao
+                Start Chatting with Lepen
               </button>
             </section>
           </>
+        ) : (
+          /* Chat View */
+          <div className="space-y-4">
+            <ChatInterface
+              mode={activeMode}
+              conversationId={activeConversationId}
+              initialMessages={conversationMessages}
+              onSaveMessage={handleSaveMessage}
+              onModeChange={handleSelectMode}
+            />
+          </div>
         )}
 
         {/* Footer */}
-        <footer className="text-center mt-12 text-foreground/50 font-sans text-sm">
-          <p>&copy; 2025 Levao AI - Intelligence Illuminated</p>
+        <footer className="text-center mt-8 text-foreground/50 font-sans text-sm">
+          <p>&copy; {currentYear} Lepen AI - Intelligence Illuminated</p>
         </footer>
       </div>
     </div>

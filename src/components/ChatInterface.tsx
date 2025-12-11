@@ -1,17 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Mic, Loader2, Upload, Volume2, Trash2, X } from "lucide-react";
+import { Send, Mic, Loader2, Upload, X, MessageSquare, Image, Code } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Sparkle } from "./SparkleEffect";
+import { MessageContent } from "./MessageContent";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { Message } from "@/hooks/useConversations";
 
 interface UploadedFile {
   id: string;
   name: string;
+  type: string;
   content: string;
+  preview?: string;
 }
 
 interface ChatInterfaceProps {
@@ -19,9 +21,16 @@ interface ChatInterfaceProps {
   conversationId: string | null;
   initialMessages?: Message[];
   onSaveMessage?: (role: "user" | "assistant", content: string, imageUrl?: string) => Promise<void>;
+  onModeChange?: (mode: string) => void;
 }
 
-export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSaveMessage }: ChatInterfaceProps) => {
+const modes = [
+  { id: "chat", label: "Chat", icon: MessageSquare },
+  { id: "images", label: "Images", icon: Image },
+  { id: "code", label: "Code", icon: Code },
+];
+
+export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSaveMessage, onModeChange }: ChatInterfaceProps) => {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -29,6 +38,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -43,18 +53,23 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     scrollToBottom();
   }, [messages]);
 
+  // Cleanup speech recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
+  }, []);
+
   const getModePrompt = () => {
     switch (mode) {
       case "images":
         return "Describe the image you'd like to create, and I'll generate it for you!";
       case "code":
         return "I'm ready to help you write, debug, or explain code. What would you like to build?";
-      case "apps":
-        return "Let's build something amazing! Describe the app you want to create.";
-      case "video":
-        return "I can help with video concepts, scripts, and storyboards. What's your vision?";
       default:
-        return "Hello! I'm Levao AI. How can I assist you today?";
+        return "Hello! I'm Lepen AI. How can I assist you today?";
     }
   };
 
@@ -63,25 +78,50 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     if (!files) return;
 
     for (const file of Array.from(files)) {
-      if (file.size > 5 * 1024 * 1024) {
+      if (file.size > 10 * 1024 * 1024) {
         toast({
           title: "File too large",
-          description: `${file.name} is larger than 5MB`,
+          description: `${file.name} is larger than 10MB`,
           variant: "destructive",
         });
         continue;
       }
 
       const reader = new FileReader();
+      
       reader.onload = (event) => {
-        const content = event.target?.result as string;
-        setUploadedFiles((prev) => [
-          ...prev,
-          { id: Date.now().toString(), name: file.name, content },
-        ]);
+        const result = event.target?.result as string;
+        
+        const newFile: UploadedFile = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          name: file.name,
+          type: file.type,
+          content: result,
+          preview: file.type.startsWith("image/") ? result : undefined,
+        };
+        
+        setUploadedFiles((prev) => [...prev, newFile]);
+        
+        toast({
+          title: "File uploaded",
+          description: `${file.name} added to context`,
+        });
       };
 
-      if (file.type.startsWith("text/") || file.type === "application/json") {
+      reader.onerror = () => {
+        toast({
+          title: "Upload failed",
+          description: `Could not read ${file.name}`,
+          variant: "destructive",
+        });
+      };
+
+      if (file.type.startsWith("text/") || 
+          file.type === "application/json" ||
+          file.type === "application/javascript" ||
+          file.name.endsWith(".md") ||
+          file.name.endsWith(".txt") ||
+          file.name.endsWith(".csv")) {
         reader.readAsText(file);
       } else {
         reader.readAsDataURL(file);
@@ -97,23 +137,15 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     setUploadedFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
-  const clearAllFiles = () => {
-    setUploadedFiles([]);
-  };
-
-  const streamChat = useCallback(async (userContent: string) => {
+  const streamChat = useCallback(async (userContent: string, filesContext: string) => {
     const chatMessages = messages.map((m) => ({
       role: m.role,
       content: m.content,
     }));
 
-    // Add file context if any
     let contextualContent = userContent;
-    if (uploadedFiles.length > 0) {
-      const fileContext = uploadedFiles
-        .map((f) => `[File: ${f.name}]\n${f.content}`)
-        .join("\n\n");
-      contextualContent = `Context from uploaded files:\n${fileContext}\n\nUser message: ${userContent}`;
+    if (filesContext) {
+      contextualContent = `[Attached files context]\n${filesContext}\n\n[User message]\n${userContent}`;
     }
 
     chatMessages.push({ role: "user", content: contextualContent });
@@ -142,7 +174,6 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     let assistantContent = "";
     let buffer = "";
 
-    // Create assistant message placeholder
     const assistantMessage: Message = {
       id: Date.now().toString(),
       conversation_id: conversationId || "",
@@ -184,13 +215,13 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
             );
           }
         } catch {
-          // Incomplete JSON, wait for more data
+          // Incomplete JSON
         }
       }
     }
 
     return assistantContent;
-  }, [messages, uploadedFiles, mode, conversationId]);
+  }, [messages, mode, conversationId]);
 
   const generateImage = useCallback(async (prompt: string) => {
     const response = await fetch(
@@ -217,11 +248,26 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     if (!input.trim() || isLoading) return;
 
     const userContent = input.trim();
+    
+    // Build file context
+    let filesContext = "";
+    if (uploadedFiles.length > 0) {
+      filesContext = uploadedFiles.map((f) => {
+        if (f.type.startsWith("image/")) {
+          return `[Image: ${f.name}] - Image data included`;
+        }
+        return `[File: ${f.name}]\n${f.content}`;
+      }).join("\n\n");
+    }
+
+    // Create display message (without file context for cleaner UI)
     const userMessage: Message = {
       id: Date.now().toString(),
       conversation_id: conversationId || "",
       role: "user",
-      content: userContent,
+      content: uploadedFiles.length > 0 
+        ? `${userContent}\n\n📎 Attached: ${uploadedFiles.map(f => f.name).join(", ")}`
+        : userContent,
       created_at: new Date().toISOString(),
     };
 
@@ -229,14 +275,16 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     setInput("");
     setIsLoading(true);
 
+    // Clear files after sending
+    const filesToSend = [...uploadedFiles];
+    setUploadedFiles([]);
+
     try {
-      // Save user message
       if (onSaveMessage) {
-        await onSaveMessage("user", userContent);
+        await onSaveMessage("user", userMessage.content);
       }
 
       if (mode === "images") {
-        // Generate image
         const result = await generateImage(userContent);
         
         const assistantMessage: Message = {
@@ -253,8 +301,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
           await onSaveMessage("assistant", assistantMessage.content, result.imageUrl);
         }
       } else {
-        // Stream chat response
-        const assistantContent = await streamChat(userContent);
+        const assistantContent = await streamChat(userContent, filesContext);
         
         if (onSaveMessage && assistantContent) {
           await onSaveMessage("assistant", assistantContent);
@@ -268,7 +315,6 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
         variant: "destructive",
       });
       
-      // Remove the last assistant message if it failed
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last?.role === "assistant" && !last.content) {
@@ -289,83 +335,137 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
   };
 
   const startVoiceInput = () => {
-    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
-      toast({
-        title: "Not supported",
-        description: "Voice input is not supported in your browser",
-        variant: "destructive",
-      });
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsListening(false);
       return;
     }
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setInput((prev) => prev + transcript);
-    };
-    recognition.onerror = () => {
-      setIsListening(false);
-      toast({
-        title: "Error",
-        description: "Voice recognition failed",
-        variant: "destructive",
-      });
-    };
-
-    recognition.start();
-  };
-
-  const speakText = (text: string) => {
-    if (!("speechSynthesis" in window)) {
+    
+    if (!SpeechRecognition) {
       toast({
         title: "Not supported",
-        description: "Text-to-speech is not supported in your browser",
+        description: "Voice input is not supported in your browser. Try Chrome or Edge.",
         variant: "destructive",
       });
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    speechSynthesis.speak(utterance);
-  };
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
 
-  const clearMessages = () => {
-    setMessages([]);
-    setUploadedFiles([]);
+    let finalTranscript = "";
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      toast({
+        title: "Listening...",
+        description: "Speak now. Click the mic again to stop.",
+      });
+    };
+
+    recognition.onresult = (event: any) => {
+      let interimTranscript = "";
+      
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + " ";
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+      
+      setInput(finalTranscript + interimTranscript);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error:", event.error);
+      setIsListening(false);
+      
+      if (event.error === "no-speech") {
+        toast({
+          title: "No speech detected",
+          description: "Please try speaking again",
+        });
+      } else if (event.error === "not-allowed") {
+        toast({
+          title: "Microphone access denied",
+          description: "Please allow microphone access in your browser settings",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Voice recognition error",
+          description: "Please try again",
+          variant: "destructive",
+        });
+      }
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+
+    try {
+      recognition.start();
+    } catch (error) {
+      console.error("Failed to start recognition:", error);
+      setIsListening(false);
+    }
   };
 
   return (
-    <div className="glass-strong rounded-2xl h-[500px] flex flex-col overflow-hidden">
+    <div className="glass-strong rounded-2xl h-[550px] flex flex-col overflow-hidden">
+      {/* Mode Selector */}
+      <div className="px-4 py-3 border-b border-primary/20 flex gap-2 justify-center flex-wrap">
+        {modes.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => onModeChange?.(id)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg font-sans text-sm transition-all duration-200",
+              mode === id
+                ? "bg-primary text-primary-foreground shadow-gold"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            )}
+          >
+            <Icon className="w-4 h-4" />
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+
       {/* File Memory Panel */}
       {uploadedFiles.length > 0 && (
-        <div className="p-4 border-b border-primary/20">
+        <div className="p-3 border-b border-primary/20 bg-muted/30">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-foreground/80 font-body">
-              AI Memory ({uploadedFiles.length} files)
+              Attached ({uploadedFiles.length})
             </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={clearAllFiles}
-              className="text-foreground/60 hover:text-foreground"
-            >
-              Clear All
-            </Button>
           </div>
           <div className="flex flex-wrap gap-2">
             {uploadedFiles.map((file) => (
               <div
                 key={file.id}
-                className="flex items-center gap-2 bg-primary/20 px-3 py-1 rounded-full text-sm text-foreground"
+                className="flex items-center gap-2 bg-primary/20 px-3 py-1.5 rounded-full text-sm text-foreground"
               >
-                <span className="truncate max-w-[150px]">{file.name}</span>
-                <button onClick={() => removeFile(file.id)}>
+                {file.preview && (
+                  <img src={file.preview} alt="" className="w-5 h-5 rounded object-cover" />
+                )}
+                <span className="truncate max-w-[120px]">{file.name}</span>
+                <button 
+                  onClick={() => removeFile(file.id)}
+                  className="hover:text-destructive transition-colors"
+                >
                   <X className="w-3 h-3" />
                 </button>
               </div>
@@ -383,7 +483,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
                 <Sparkle size={48} />
               </div>
               <h3 className="font-display text-xl text-foreground mb-3">
-                Welcome to Levao AI
+                Welcome to Lepen AI
               </h3>
               <p className="text-muted-foreground font-body leading-relaxed">
                 {getModePrompt()}
@@ -401,7 +501,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
             >
               <div
                 className={cn(
-                  "max-w-[80%] px-5 py-3 rounded-2xl font-sans text-sm leading-relaxed",
+                  "max-w-[85%] px-5 py-3 rounded-2xl font-sans text-sm leading-relaxed",
                   message.role === "user"
                     ? "bg-primary text-primary-foreground shadow-gold"
                     : "glass border-primary/20 text-foreground"
@@ -414,23 +514,16 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
                     className="rounded-lg mb-3 max-w-full"
                   />
                 )}
-                <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                <div className="flex items-center justify-between mt-2">
-                  <p className="text-xs opacity-60">
-                    {new Date(message.created_at).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                  {message.role === "assistant" && message.content && (
-                    <button
-                      onClick={() => speakText(message.content)}
-                      className="text-xs opacity-60 hover:opacity-100"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+                <MessageContent 
+                  content={message.content} 
+                  isAssistant={message.role === "assistant"} 
+                />
+                <p className="text-xs opacity-60 mt-2">
+                  {new Date(message.created_at).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
               </div>
             </div>
           ))
@@ -448,41 +541,6 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Controls */}
-      <div className="px-4 py-2 border-t border-primary/20 flex gap-2 justify-center flex-wrap">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => speakText(messages.filter(m => m.role === "assistant").pop()?.content || "")}
-          className="text-foreground/80 hover:bg-primary/10"
-          disabled={!messages.some(m => m.role === "assistant")}
-        >
-          <Volume2 className="w-4 h-4 mr-2" />
-          Speak Wisdom
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={startVoiceInput}
-          className={cn(
-            "text-foreground/80 hover:bg-primary/10",
-            isListening && "bg-primary/20 text-primary"
-          )}
-        >
-          <Mic className="w-4 h-4 mr-2" />
-          Voice Spell
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={clearMessages}
-          className="text-foreground/80 hover:bg-primary/10"
-        >
-          <Trash2 className="w-4 h-4 mr-2" />
-          Clear Scrolls
-        </Button>
-      </div>
-
       {/* Input Area */}
       <div className="p-4 border-t border-primary/20">
         <div className="flex gap-3 items-end">
@@ -492,14 +550,14 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
             onChange={handleFileUpload}
             className="hidden"
             multiple
-            accept="text/*,application/json,image/*"
+            accept="text/*,application/json,image/*,.md,.csv,.txt,.js,.ts,.py,.html,.css"
           />
           <Button
             onClick={() => fileInputRef.current?.click()}
             className="h-[60px] px-4 bg-primary/80 hover:bg-primary text-primary-foreground"
+            title="Upload files"
           >
-            <Upload className="w-5 h-5 mr-2" />
-            Upload
+            <Upload className="w-5 h-5" />
           </Button>
           <div className="flex-1 relative">
             <Textarea
@@ -508,8 +566,8 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
               onKeyDown={handleKeyDown}
               placeholder={
                 uploadedFiles.length > 0
-                  ? `Files in memory: ${uploadedFiles.map((f) => f.name).join(", ")} - Ask your question...`
-                  : "Speak your query to Levao AI..."
+                  ? `Ask about your files...`
+                  : "Ask Lepen AI anything..."
               }
               className="min-h-[60px] max-h-[120px] resize-none bg-muted/50 border-primary/30 text-foreground placeholder:text-muted-foreground focus:border-primary pr-12"
               rows={2}
@@ -520,8 +578,9 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
               onClick={startVoiceInput}
               className={cn(
                 "absolute right-2 top-1/2 -translate-y-1/2 text-primary hover:text-primary/80 hover:bg-primary/10",
-                isListening && "bg-primary/20"
+                isListening && "bg-primary/20 animate-pulse"
               )}
+              title={isListening ? "Stop listening" : "Voice input"}
             >
               <Mic className="w-5 h-5" />
             </Button>
@@ -531,8 +590,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
             disabled={!input.trim() || isLoading}
             className="h-[60px] px-6 bg-primary text-primary-foreground hover:bg-primary/90 shadow-gold"
           >
-            <Send className="w-5 h-5 mr-2" />
-            Cast
+            <Send className="w-5 h-5" />
           </Button>
         </div>
       </div>

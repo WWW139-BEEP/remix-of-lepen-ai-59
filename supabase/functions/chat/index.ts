@@ -19,11 +19,9 @@ serve(async (req) => {
     }
 
     const systemPrompts: Record<string, string> = {
-      chat: "You are Levao AI, a helpful and intelligent assistant. Provide clear, concise, and helpful responses.",
-      code: "You are Levao AI Code Assistant. Help users write, debug, and explain code. Provide clean, well-documented code examples with explanations.",
-      apps: "You are Levao AI App Builder. Help users design and plan applications. Provide architecture suggestions, feature recommendations, and implementation guidance.",
-      video: "You are Levao AI Video Assistant. Help users with video concepts, scripts, storyboards, and animation ideas.",
-      images: "You are Levao AI Image Assistant. Help users refine their image prompts and describe what kind of images they want to create."
+      chat: "You are Lepen AI, a helpful and intelligent assistant. Provide clear, concise, and helpful responses.",
+      code: "You are Lepen AI Code Assistant. Help users write, debug, and explain code. Provide clean, well-documented code examples with explanations. Always wrap code in markdown code blocks with the language specified.",
+      images: "You are Lepen AI Image Assistant. Help users refine their image prompts and describe what kind of images they want to create."
     };
 
     const systemPrompt = systemPrompts[mode] || systemPrompts.chat;

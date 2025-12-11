@@ -1,12 +1,10 @@
 import { cn } from "@/lib/utils";
-import { MessageSquare, Image, Code, AppWindow, Video } from "lucide-react";
+import { MessageSquare, Image, Code } from "lucide-react";
 
 const modes = [
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "images", label: "Images", icon: Image },
   { id: "code", label: "Code", icon: Code },
-  { id: "apps", label: "Apps", icon: AppWindow },
-  { id: "video", label: "Video", icon: Video },
 ];
 
 interface ModeSelectorProps {

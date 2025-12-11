@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { LevaoLogo } from "@/components/LevaoLogo";
+import { LepanLogo } from "@/components/LepanLogo";
 import { SparkleBackground } from "@/components/SparkleEffect";
 import { Loader2 } from "lucide-react";
 
@@ -53,7 +53,7 @@ const Auth = () => {
         } else {
           toast({
             title: "Account Created!",
-            description: "You can now start using Levao AI.",
+            description: "You can now start using Lepen AI.",
           });
         }
       }
@@ -78,11 +78,11 @@ const Auth = () => {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="rounded-full bg-card/40 p-2 shadow-glow backdrop-blur-sm">
-              <LevaoLogo size="md" />
+              <LepanLogo size="md" />
             </div>
           </div>
           <h1 className="font-display text-4xl font-bold text-foreground mb-2">
-            Levao AI
+            Lepen AI
           </h1>
           <p className="text-foreground/70 font-body">
             Intelligence Illuminated
