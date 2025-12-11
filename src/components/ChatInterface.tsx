@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Mic, Loader2, Upload, X, MessageSquare, Image, Code } from "lucide-react";
+import { Send, Mic, Loader2, Upload, X, MessageSquare, Image, Code, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -508,11 +508,21 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
                 )}
               >
                 {message.image_url && (
-                  <img
-                    src={message.image_url}
-                    alt="Generated"
-                    className="rounded-lg mb-3 max-w-full"
-                  />
+                  <div className="relative group mb-3">
+                    <img
+                      src={message.image_url}
+                      alt="Generated"
+                      className="rounded-lg max-w-full"
+                    />
+                    <a
+                      href={message.image_url}
+                      download={`lepen-ai-image-${Date.now()}.png`}
+                      className="absolute top-2 right-2 bg-background/80 hover:bg-background p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Download image"
+                    >
+                      <Download className="w-4 h-4 text-foreground" />
+                    </a>
+                  </div>
                 )}
                 <MessageContent 
                   content={message.content} 

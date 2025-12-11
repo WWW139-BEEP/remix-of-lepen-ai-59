@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { MessageSquare, Plus, Trash2, LogOut, X } from "lucide-react";
+import { MessageSquare, Plus, Trash2, LogOut, X, Search, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Conversation } from "@/hooks/useConversations";
 import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 
 interface ConversationSidebarProps {
   conversations: Conversation[];
@@ -25,11 +27,17 @@ export const ConversationSidebar = ({
   onClose,
 }: ConversationSidebarProps) => {
   const { signOut, user } = useAuth();
+  const navigate = useNavigate();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const getModeIcon = (mode: string) => {
     return <MessageSquare className="w-4 h-4" />;
   };
+
+  const filteredConversations = conversations.filter((conv) =>
+    conv.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <>
@@ -59,8 +67,21 @@ export const ConversationSidebar = ({
           </button>
         </div>
 
+        {/* Search */}
+        <div className="p-4 pb-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search conversations..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 bg-muted/50 border-primary/30"
+            />
+          </div>
+        </div>
+
         {/* New Chat Button */}
-        <div className="p-4">
+        <div className="px-4 pb-2">
           <Button
             onClick={onNewConversation}
             className="w-full bg-primary/20 hover:bg-primary/30 text-foreground border border-primary/30"
@@ -72,13 +93,13 @@ export const ConversationSidebar = ({
 
         {/* Conversations List */}
         <div className="flex-1 overflow-y-auto px-2">
-          {conversations.length === 0 ? (
+          {filteredConversations.length === 0 ? (
             <p className="text-center text-muted-foreground text-sm py-8">
-              No conversations yet
+              {searchQuery ? "No matching conversations" : "No conversations yet"}
             </p>
           ) : (
             <div className="space-y-1">
-              {conversations.map((conv) => (
+              {filteredConversations.map((conv) => (
                 <div
                   key={conv.id}
                   onMouseEnter={() => setHoveredId(conv.id)}
@@ -110,11 +131,22 @@ export const ConversationSidebar = ({
           )}
         </div>
 
-        {/* User Info & Logout */}
-        <div className="p-4 border-t border-primary/20">
-          <div className="text-sm text-foreground/60 mb-2 truncate">
+        {/* User Info & Actions */}
+        <div className="p-4 border-t border-primary/20 space-y-2">
+          <div className="text-sm text-foreground/60 truncate">
             {user?.email}
           </div>
+          <Button
+            onClick={() => {
+              navigate("/settings");
+              onClose();
+            }}
+            variant="ghost"
+            className="w-full justify-start text-foreground/80 hover:text-foreground hover:bg-primary/10"
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            Settings
+          </Button>
           <Button
             onClick={signOut}
             variant="ghost"

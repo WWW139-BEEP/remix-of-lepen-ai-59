@@ -186,7 +186,7 @@ const Index = () => {
               Builder Info
             </DialogTitle>
           </DialogHeader>
-          <div className="text-lg font-body text-foreground space-y-2">
+          <div className="text-lg font-body text-foreground">
             <p>
               <span className="font-semibold">Built by </span>
               <a 
@@ -198,7 +198,6 @@ const Index = () => {
                 ARKA DAS
               </a>
             </p>
-            <p className="italic text-muted-foreground">Powered by Google Gemini</p>
           </div>
         </DialogContent>
       </Dialog>
