@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Mic, Loader2, Upload, X, MessageSquare, Image, Code, Download } from "lucide-react";
+import { Send, Mic, Loader2, Upload, X, MessageSquare, Image, Hammer, Download, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -27,7 +27,7 @@ interface ChatInterfaceProps {
 const modes = [
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "images", label: "Images", icon: Image },
-  { id: "code", label: "Code", icon: Code },
+  { id: "code", label: "Build", icon: Hammer },
 ];
 
 export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSaveMessage, onModeChange }: ChatInterfaceProps) => {
@@ -36,10 +36,12 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
-  const { toast } = useToast();
+  const toastIdRef = useRef<string | null>(null);
+  const { toast, dismiss } = useToast();
 
   useEffect(() => {
     setMessages(initialMessages);
@@ -59,15 +61,19 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
       if (recognitionRef.current) {
         recognitionRef.current.abort();
       }
+      if (toastIdRef.current) {
+        dismiss(toastIdRef.current);
+      }
+      window.speechSynthesis?.cancel();
     };
-  }, []);
+  }, [dismiss]);
 
   const getModePrompt = () => {
     switch (mode) {
       case "images":
         return "Describe the image you'd like to create, and I'll generate it for you!";
       case "code":
-        return "I'm ready to help you write, debug, or explain code. What would you like to build?";
+        return "I'm ready to help you build, debug, or explain code. What would you like to create?";
       default:
         return "Hello! I'm Lepen AI. How can I assist you today?";
     }
@@ -116,7 +122,10 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
         });
       };
 
-      if (file.type.startsWith("text/") || 
+      // Always read as base64 for images to preserve data for AI analysis
+      if (file.type.startsWith("image/")) {
+        reader.readAsDataURL(file);
+      } else if (file.type.startsWith("text/") || 
           file.type === "application/json" ||
           file.type === "application/javascript" ||
           file.name.endsWith(".md") ||
@@ -135,6 +144,43 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
 
   const removeFile = (id: string) => {
     setUploadedFiles((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const speakText = (text: string) => {
+    if (!window.speechSynthesis) {
+      toast({
+        title: "Not supported",
+        description: "Text-to-speech is not supported in your browser",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+    
+    // Clean the text (remove markdown, code blocks, etc.)
+    const cleanText = text
+      .replace(/```[\s\S]*?```/g, "Code block omitted.")
+      .replace(/`[^`]+`/g, "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/[#*_~]/g, "")
+      .trim();
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    window.speechSynthesis?.cancel();
+    setIsSpeaking(false);
   };
 
   const streamChat = useCallback(async (userContent: string, filesContext: string) => {
@@ -249,12 +295,13 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
 
     const userContent = input.trim();
     
-    // Build file context
+    // Build file context with proper image handling
     let filesContext = "";
     if (uploadedFiles.length > 0) {
       filesContext = uploadedFiles.map((f) => {
         if (f.type.startsWith("image/")) {
-          return `[Image: ${f.name}] - Image data included`;
+          // Include base64 data for image analysis
+          return `[Image: ${f.name}]\nBase64 image data: ${f.content}`;
         }
         return `[File: ${f.name}]\n${f.content}`;
       }).join("\n\n");
@@ -340,6 +387,11 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
         recognitionRef.current.stop();
       }
       setIsListening(false);
+      // Dismiss the listening toast
+      if (toastIdRef.current) {
+        dismiss(toastIdRef.current);
+        toastIdRef.current = null;
+      }
       return;
     }
 
@@ -365,10 +417,12 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
 
     recognition.onstart = () => {
       setIsListening(true);
-      toast({
+      const { id } = toast({
         title: "Listening...",
         description: "Speak now. Click the mic again to stop.",
+        duration: 60000, // Long duration
       });
+      toastIdRef.current = id;
     };
 
     recognition.onresult = (event: any) => {
@@ -390,22 +444,31 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
       console.error("Speech recognition error:", event.error);
       setIsListening(false);
       
+      // Dismiss the listening toast
+      if (toastIdRef.current) {
+        dismiss(toastIdRef.current);
+        toastIdRef.current = null;
+      }
+      
       if (event.error === "no-speech") {
         toast({
           title: "No speech detected",
           description: "Please try speaking again",
+          duration: 3000,
         });
       } else if (event.error === "not-allowed") {
         toast({
           title: "Microphone access denied",
           description: "Please allow microphone access in your browser settings",
           variant: "destructive",
+          duration: 5000,
         });
       } else {
         toast({
           title: "Voice recognition error",
           description: "Please try again",
           variant: "destructive",
+          duration: 3000,
         });
       }
     };
@@ -413,6 +476,11 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     recognition.onend = () => {
       setIsListening(false);
       recognitionRef.current = null;
+      // Dismiss the listening toast
+      if (toastIdRef.current) {
+        dismiss(toastIdRef.current);
+        toastIdRef.current = null;
+      }
     };
 
     try {
@@ -424,7 +492,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
   };
 
   return (
-    <div className="glass-strong rounded-2xl h-[550px] flex flex-col overflow-hidden">
+    <div className="glass-strong rounded-2xl h-[550px] flex flex-col overflow-hidden relative" style={{ zIndex: 10 }}>
       {/* Mode Selector */}
       <div className="px-4 py-3 border-b border-primary/20 flex gap-2 justify-center flex-wrap">
         {modes.map(({ id, label, icon: Icon }) => (
@@ -528,12 +596,26 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
                   content={message.content} 
                   isAssistant={message.role === "assistant"} 
                 />
-                <p className="text-xs opacity-60 mt-2">
-                  {new Date(message.created_at).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs opacity-60">
+                    {new Date(message.created_at).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  {message.role === "assistant" && message.content && (
+                    <button
+                      onClick={() => isSpeaking ? stopSpeaking() : speakText(message.content)}
+                      className={cn(
+                        "p-1 rounded hover:bg-primary/20 transition-colors",
+                        isSpeaking && "text-primary animate-pulse"
+                      )}
+                      title={isSpeaking ? "Stop speaking" : "Listen to response"}
+                    >
+                      <Volume2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))

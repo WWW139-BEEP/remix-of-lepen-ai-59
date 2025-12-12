@@ -1,11 +1,17 @@
 import { useState } from "react";
-import { MessageSquare, Plus, Trash2, LogOut, X, Search, Settings } from "lucide-react";
+import { MessageSquare, Plus, Trash2, LogOut, X, Search, Settings, Edit2, Check, Download, FileJson, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Conversation } from "@/hooks/useConversations";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ConversationSidebarProps {
   conversations: Conversation[];
@@ -13,6 +19,8 @@ interface ConversationSidebarProps {
   onSelectConversation: (id: string) => void;
   onNewConversation: () => void;
   onDeleteConversation: (id: string) => void;
+  onRenameConversation: (id: string, title: string) => void;
+  onExportConversation: (id: string, format: "txt" | "json") => void;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -23,6 +31,8 @@ export const ConversationSidebar = ({
   onSelectConversation,
   onNewConversation,
   onDeleteConversation,
+  onRenameConversation,
+  onExportConversation,
   isOpen,
   onClose,
 }: ConversationSidebarProps) => {
@@ -30,6 +40,8 @@ export const ConversationSidebar = ({
   const navigate = useNavigate();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
 
   const getModeIcon = (mode: string) => {
     return <MessageSquare className="w-4 h-4" />;
@@ -38,6 +50,24 @@ export const ConversationSidebar = ({
   const filteredConversations = conversations.filter((conv) =>
     conv.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleStartEdit = (conv: Conversation) => {
+    setEditingId(conv.id);
+    setEditTitle(conv.title);
+  };
+
+  const handleSaveEdit = (id: string) => {
+    if (editTitle.trim()) {
+      onRenameConversation(id, editTitle.trim());
+    }
+    setEditingId(null);
+    setEditTitle("");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditTitle("");
+  };
 
   return (
     <>
@@ -110,20 +140,76 @@ export const ConversationSidebar = ({
                       ? "bg-primary/20 text-foreground"
                       : "hover:bg-primary/10 text-foreground/80"
                   )}
-                  onClick={() => onSelectConversation(conv.id)}
+                  onClick={() => {
+                    if (editingId !== conv.id) {
+                      onSelectConversation(conv.id);
+                    }
+                  }}
                 >
                   {getModeIcon(conv.mode)}
-                  <span className="flex-1 truncate text-sm">{conv.title}</span>
-                  {hoveredId === conv.id && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteConversation(conv.id);
-                      }}
-                      className="text-destructive hover:text-destructive/80"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                  
+                  {editingId === conv.id ? (
+                    <div className="flex-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Input
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="h-7 text-sm bg-background/50"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveEdit(conv.id);
+                          if (e.key === "Escape") handleCancelEdit();
+                        }}
+                      />
+                      <button
+                        onClick={() => handleSaveEdit(conv.id)}
+                        className="text-accent hover:text-accent/80"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        className="text-destructive hover:text-destructive/80"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="flex-1 truncate text-sm">{conv.title}</span>
+                      {hoveredId === conv.id && (
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => handleStartEdit(conv)}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="text-muted-foreground hover:text-foreground">
+                                <Download className="w-3.5 h-3.5" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="glass-strong border-primary/30">
+                              <DropdownMenuItem onClick={() => onExportConversation(conv.id, "txt")}>
+                                <FileText className="w-4 h-4 mr-2" />
+                                Export as Text
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onExportConversation(conv.id, "json")}>
+                                <FileJson className="w-4 h-4 mr-2" />
+                                Export as JSON
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          <button
+                            onClick={() => onDeleteConversation(conv.id)}
+                            className="text-destructive hover:text-destructive/80"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               ))}

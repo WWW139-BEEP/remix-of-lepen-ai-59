@@ -6,7 +6,7 @@ interface SparkleProps {
 }
 
 export const Sparkle = ({ className, size = 24 }: SparkleProps) => (
-  <div className={cn("relative text-primary", className)}>
+  <div className={cn("relative text-primary pointer-events-none", className)}>
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width={size}
@@ -45,12 +45,14 @@ export const Sparkle = ({ className, size = 24 }: SparkleProps) => (
 );
 
 export const SparkleBackground = () => (
-  <>
-    <Sparkle className="absolute top-10 left-10" size={24} />
-    <Sparkle className="absolute top-20 right-16 delay-200" size={20} />
-    <Sparkle className="absolute bottom-32 left-20 delay-2000" size={28} />
-    <Sparkle className="absolute bottom-20 right-10 delay-500" size={22} />
-    <Sparkle className="absolute top-1/3 left-1/4 delay-700" size={16} />
-    <Sparkle className="absolute top-2/3 right-1/4 delay-1000" size={18} />
-  </>
+  <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 1 }}>
+    <Sparkle className="absolute top-[5%] left-[5%]" size={24} />
+    <Sparkle className="absolute top-[8%] right-[8%] delay-200" size={20} />
+    <Sparkle className="absolute bottom-[15%] left-[8%] delay-2000" size={28} />
+    <Sparkle className="absolute bottom-[10%] right-[5%] delay-500" size={22} />
+    <Sparkle className="absolute top-[40%] left-[3%] delay-700" size={16} />
+    <Sparkle className="absolute top-[60%] right-[3%] delay-1000" size={18} />
+    <Sparkle className="absolute top-[25%] right-[15%] delay-300" size={14} />
+    <Sparkle className="absolute bottom-[30%] left-[15%] delay-500" size={16} />
+  </div>
 );

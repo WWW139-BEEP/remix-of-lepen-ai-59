@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Image, Code, Sparkles, Menu, Info } from "lucide-react";
+import { MessageSquare, Image, Hammer, Sparkles, Menu, Info } from "lucide-react";
 import { LepanLogo } from "@/components/LepanLogo";
 import { SparkleBackground } from "@/components/SparkleEffect";
 import { FeatureCard } from "@/components/FeatureCard";
@@ -32,8 +32,8 @@ const features = [
   },
   {
     id: "code",
-    icon: Code,
-    title: "Code Assistant",
+    icon: Hammer,
+    title: "Build Apps",
     description: "Write, debug, and optimize code across multiple programming languages.",
   },
 ];
@@ -51,6 +51,7 @@ const Index = () => {
     conversations,
     loading: convLoading,
     createConversation,
+    updateConversationTitle,
     deleteConversation,
     getMessages,
     addMessage,
@@ -141,6 +142,60 @@ const Index = () => {
     }
   };
 
+  const handleRenameConversation = async (id: string, title: string) => {
+    await updateConversationTitle(id, title);
+  };
+
+  const handleExportConversation = async (id: string, format: "txt" | "json") => {
+    const msgs = await getMessages(id);
+    const conv = conversations.find((c) => c.id === id);
+    const title = conv?.title || "conversation";
+    
+    if (format === "json") {
+      const data = {
+        title: conv?.title,
+        mode: conv?.mode,
+        created_at: conv?.created_at,
+        messages: msgs.map((m) => ({
+          role: m.role,
+          content: m.content,
+          created_at: m.created_at,
+          image_url: m.image_url,
+        })),
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title.replace(/[^a-z0-9]/gi, "_")}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      let text = `# ${conv?.title}\n`;
+      text += `Mode: ${conv?.mode}\n`;
+      text += `Created: ${new Date(conv?.created_at || "").toLocaleString()}\n\n`;
+      text += "---\n\n";
+      
+      msgs.forEach((m) => {
+        const role = m.role === "user" ? "You" : "Lepen AI";
+        text += `[${role}] (${new Date(m.created_at).toLocaleString()})\n`;
+        text += `${m.content}\n`;
+        if (m.image_url) {
+          text += `[Image: ${m.image_url}]\n`;
+        }
+        text += "\n---\n\n";
+      });
+      
+      const blob = new Blob([text], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title.replace(/[^a-z0-9]/gi, "_")}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
   const currentYear = new Date().getFullYear();
 
   if (authLoading || convLoading) {
@@ -165,6 +220,8 @@ const Index = () => {
         onSelectConversation={loadConversation}
         onNewConversation={handleNewConversation}
         onDeleteConversation={handleDeleteConversation}
+        onRenameConversation={handleRenameConversation}
+        onExportConversation={handleExportConversation}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -188,7 +245,6 @@ const Index = () => {
           </DialogHeader>
           <div className="text-lg font-body text-foreground">
             <p>
-              <span className="font-semibold">Built by </span>
               <a 
                 href="https://arkadas.netlify.app" 
                 target="_blank" 
@@ -202,7 +258,7 @@ const Index = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
+      <div className="container mx-auto px-4 py-8 max-w-4xl relative" style={{ zIndex: 10 }}>
         {/* Menu Button */}
         <Button
           variant="ghost"
