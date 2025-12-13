@@ -11,23 +11,44 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode } = await req.json();
+    const { query, messages = [] } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompts: Record<string, string> = {
-      chat: "You are Lepen AI, a helpful and intelligent assistant. Provide clear, concise, and helpful responses. You may receive extra context under a section called [Attached files context]. Carefully read and use that information, including any base64-encoded images or file contents, when answering the user's question.",
-      code: "You are Lepen AI Build Assistant. Help users design, write, debug, and explain code. Provide clean, well-documented code examples with explanations and always wrap code in markdown code blocks with the language specified. When file context is provided, use it to understand the existing code and keep your suggestions consistent.",
-      images: "You are Lepen AI Image Assistant. Help users refine their image prompts and describe what kind of images they want to create. When the user attaches images, carefully analyze their description in [Attached files context] before responding.",
-    };
+    if (!query) {
+      return new Response(JSON.stringify({ error: "Query is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    const systemPrompt = systemPrompts[mode] || systemPrompts.chat;
+    console.log("Web search query:", query);
 
-    // Use Gemini 3 Pro Preview for chat and build, Gemini 2.5 Flash for images
-    const model = mode === "images" ? "google/gemini-2.5-flash" : "google/gemini-3-pro-preview";
+    const systemPrompt = `You are Lepen AI Search Assistant with real-time web search capabilities. 
+Your task is to provide accurate, up-to-date information by searching the web.
+
+When answering questions:
+1. Search for the most recent and relevant information
+2. Always cite your sources with URLs when available
+3. Format your response clearly with sections if needed
+4. Include publication dates when available
+5. If information might be outdated, mention this
+6. Use bullet points or numbered lists for clarity
+7. Provide context and explain complex topics
+
+Format citations like this: [Source Title](URL)
+
+Be thorough but concise. Focus on accuracy and helpfulness.`;
+
+    // Build conversation history
+    const conversationMessages = [
+      { role: "system", content: systemPrompt },
+      ...messages.map((m: any) => ({ role: m.role, content: m.content })),
+      { role: "user", content: `Search the web and answer: ${query}` }
+    ];
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -36,12 +57,12 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages,
-        ],
+        model: "google/gemini-3-pro-preview",
+        messages: conversationMessages,
         stream: true,
+        tools: [{
+          "googleSearch": {}
+        }]
       }),
     });
 
@@ -59,18 +80,19 @@ serve(async (req) => {
         });
       }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      return new Response(JSON.stringify({ error: "AI service error" }), {
+      console.error("Web search error:", response.status, errorText);
+      return new Response(JSON.stringify({ error: "Web search failed" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    console.log("Web search streaming response");
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (error) {
-    console.error("Chat error:", error);
+    console.error("Web search error:", error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

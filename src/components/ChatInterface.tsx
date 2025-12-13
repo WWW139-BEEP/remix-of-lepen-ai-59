@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Mic, Loader2, Upload, X, MessageSquare, Image, Hammer, Download, Volume2 } from "lucide-react";
+import { Send, Mic, Loader2, Upload, X, MessageSquare, Image, Hammer, Download, Volume2, Search, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Sparkle } from "./SparkleEffect";
 import { MessageContent } from "./MessageContent";
+import { MapView } from "./MapView";
 import { useToast } from "@/hooks/use-toast";
 import { Message } from "@/hooks/useConversations";
 
@@ -28,7 +29,27 @@ const modes = [
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "images", label: "Images", icon: Image },
   { id: "code", label: "Build", icon: Hammer },
+  { id: "search", label: "Search", icon: Search },
+  { id: "maps", label: "Maps", icon: MapPin },
 ];
+
+interface MapData {
+  message?: string;
+  locations: Array<{
+    name: string;
+    lat: number;
+    lng: number;
+    description?: string;
+    type?: string;
+  }>;
+  center?: { lat: number; lng: number };
+  zoom?: number;
+  route?: {
+    from: string;
+    to: string;
+    waypoints?: string[];
+  };
+}
 
 export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSaveMessage, onModeChange }: ChatInterfaceProps) => {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -37,6 +58,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [mapData, setMapData] = useState<MapData | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -74,6 +96,10 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
         return "Describe the image you'd like to create, and I'll generate it for you!";
       case "code":
         return "I'm ready to help you build, debug, or explain code. What would you like to create?";
+      case "search":
+        return "Ask me anything and I'll search the web to find up-to-date information with citations!";
+      case "maps":
+        return "Tell me a place or ask for directions, and I'll show it on an interactive map!";
       default:
         return "Hello! I'm Lepen AI. How can I assist you today?";
     }
@@ -290,6 +316,111 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     return await response.json();
   }, []);
 
+  const streamWebSearch = useCallback(async (query: string) => {
+    const searchMessages = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/web-search`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ query, messages: searchMessages }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to search the web");
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("No reader available");
+
+    const decoder = new TextDecoder();
+    let assistantContent = "";
+    let buffer = "";
+
+    const assistantMessage: Message = {
+      id: Date.now().toString(),
+      conversation_id: conversationId || "",
+      role: "assistant",
+      content: "",
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, assistantMessage]);
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      let newlineIndex;
+      while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+        let line = buffer.slice(0, newlineIndex);
+        buffer = buffer.slice(newlineIndex + 1);
+
+        if (line.endsWith("\r")) line = line.slice(0, -1);
+        if (line.startsWith(":") || line.trim() === "") continue;
+        if (!line.startsWith("data: ")) continue;
+
+        const jsonStr = line.slice(6).trim();
+        if (jsonStr === "[DONE]") break;
+
+        try {
+          const parsed = JSON.parse(jsonStr);
+          const content = parsed.choices?.[0]?.delta?.content;
+          if (content) {
+            assistantContent += content;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMessage.id
+                  ? { ...m, content: assistantContent }
+                  : m
+              )
+            );
+          }
+        } catch {
+          // Incomplete JSON
+        }
+      }
+    }
+
+    return assistantContent;
+  }, [messages, conversationId]);
+
+  const searchMap = useCallback(async (query: string) => {
+    const mapMessages = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/map-search`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ query, messages: mapMessages }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to search maps");
+    }
+
+    return await response.json();
+  }, [messages]);
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -346,6 +477,28 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
 
         if (onSaveMessage) {
           await onSaveMessage("assistant", assistantMessage.content, result.imageUrl);
+        }
+      } else if (mode === "search") {
+        const assistantContent = await streamWebSearch(userContent);
+        
+        if (onSaveMessage && assistantContent) {
+          await onSaveMessage("assistant", assistantContent);
+        }
+      } else if (mode === "maps") {
+        const result = await searchMap(userContent);
+        setMapData(result);
+        
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          conversation_id: conversationId || "",
+          role: "assistant",
+          content: result.message || `Found ${result.locations?.length || 0} location(s). Check the map below!`,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+
+        if (onSaveMessage) {
+          await onSaveMessage("assistant", assistantMessage.content);
         }
       } else {
         const assistantContent = await streamChat(userContent, filesContext);
@@ -620,12 +773,24 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
             </div>
           ))
         )}
+        {/* Map View for maps mode */}
+        {mode === "maps" && mapData && mapData.locations && mapData.locations.length > 0 && (
+          <div className="mt-4">
+            <MapView
+              locations={mapData.locations}
+              center={mapData.center}
+              zoom={mapData.zoom}
+              route={mapData.route}
+              message={mapData.message}
+            />
+          </div>
+        )}
         {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
           <div className="flex justify-start">
             <div className="glass border-primary/20 px-5 py-3 rounded-2xl">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm">Thinking...</span>
+                <span className="text-sm">{mode === "search" ? "Searching the web..." : mode === "maps" ? "Finding locations..." : "Thinking..."}</span>
               </div>
             </div>
           </div>
