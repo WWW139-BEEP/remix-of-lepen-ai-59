@@ -1182,20 +1182,6 @@
                         </svg>
                         Build
                     </button>
-                    <button class="mode-btn" data-mode="search">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="8"/>
-                            <path d="M21 21l-4.35-4.35"/>
-                        </svg>
-                        Search
-                    </button>
-                    <button class="mode-btn" data-mode="maps">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                            <circle cx="12" cy="10" r="3"/>
-                        </svg>
-                        Maps
-                    </button>
                 </div>
 
                 <div class="header-actions">
@@ -1219,8 +1205,6 @@
                 <button class="mode-btn active" data-mode="chat">Chat</button>
                 <button class="mode-btn" data-mode="images">Images</button>
                 <button class="mode-btn" data-mode="build">Build</button>
-                <button class="mode-btn" data-mode="search">Search</button>
-                <button class="mode-btn" data-mode="maps">Maps</button>
             </div>
 
             <!-- Chat Area -->
@@ -1769,20 +1753,64 @@
         }
 
         async function sendToAPI(content, mode) {
-            // Choose the right endpoint based on mode
-            let endpoint = 'chat';
-            let body = { messages: state.messages.map(m => ({ role: m.role, content: m.content })), mode };
+            // Build message content with file context
+            let messageContent = content;
+            const lastMessage = state.messages[state.messages.length - 1];
             
-            if (mode === 'search') {
-                endpoint = 'web-search';
-                body = { query: content, messages: state.messages.slice(0, -1).map(m => ({ role: m.role, content: m.content })) };
-            } else if (mode === 'maps') {
-                endpoint = 'map-search';
-                body = { query: content, messages: state.messages.slice(0, -1).map(m => ({ role: m.role, content: m.content })) };
-            } else if (mode === 'images') {
-                endpoint = 'generate-image';
-                body = { prompt: content };
+            if (lastMessage?.files && lastMessage.files.length > 0) {
+                const filesContext = lastMessage.files.map(file => {
+                    const ext = file.name.toLowerCase().split('.').pop();
+                    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+                    const codeExts = ['js', 'jsx', 'ts', 'tsx', 'py', 'java', 'cpp', 'c', 'cs', 'go', 'rs', 'rb', 'php', 'swift'];
+                    const markupExts = ['html', 'htm', 'xml', 'css', 'scss', 'md', 'json', 'yaml', 'yml'];
+                    const textExts = ['txt', 'log', 'csv'];
+                    
+                    let category = 'File';
+                    let isImage = false;
+                    
+                    if (imageExts.includes(ext)) {
+                        category = ext.toUpperCase() + ' Image';
+                        isImage = true;
+                    } else if (codeExts.includes(ext)) {
+                        category = 'Code File';
+                    } else if (markupExts.includes(ext)) {
+                        category = 'Markup File';
+                    } else if (textExts.includes(ext)) {
+                        category = 'Text File';
+                    }
+                    
+                    if (isImage && file.data.startsWith('data:image/')) {
+                        return `[File Type: ${category}]\n[Image: ${file.name}]\nAnalyze this image:\n${file.data}`;
+                    } else if (file.data.startsWith('data:')) {
+                        // Try to decode base64 text content
+                        try {
+                            const base64Data = file.data.split(',')[1];
+                            const textContent = atob(base64Data);
+                            return `[File Type: ${category}]\n[File: ${file.name}]\nContent:\n${textContent}`;
+                        } catch {
+                            return `[File Type: ${category}]\n[File: ${file.name}] - Could not read file content`;
+                        }
+                    }
+                    return `[File Type: ${category}]\n[File: ${file.name}]`;
+                }).join('\n\n');
+                
+                messageContent = `[Attached files context]\n${filesContext}\n\n[User message]\n${content}`;
             }
+            
+            // Build messages for API - all modes use chat endpoint for interconnected tools
+            const apiMessages = state.messages.map(m => {
+                if (m === lastMessage && m.files && m.files.length > 0) {
+                    return { role: m.role, content: messageContent };
+                }
+                return { role: m.role, content: m.content };
+            });
+            
+            // Use chat endpoint for chat/build modes (interconnected tools)
+            // Use generate-image endpoint for images mode
+            let endpoint = mode === 'images' ? 'generate-image' : 'chat';
+            let body = mode === 'images' 
+                ? { prompt: content }
+                : { messages: apiMessages, mode: mode === 'build' ? 'code' : mode };
 
             const response = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/${endpoint}`, {
                 method: 'POST',
@@ -1794,14 +1822,27 @@
             });
 
             if (!response.ok) {
-                throw new Error('API request failed');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'API request failed');
             }
 
-            // Handle streaming for chat/search modes
-            if ((mode === 'chat' || mode === 'build' || mode === 'search') && response.body) {
+            // Handle streaming for chat/build modes
+            if ((mode === 'chat' || mode === 'build') && response.body) {
+                const contentType = response.headers.get('content-type');
+                
+                // Check if it's JSON (contains map data)
+                if (contentType?.includes('application/json')) {
+                    const data = await response.json();
+                    if (data.mapData && data.mapData.locations?.length > 0) {
+                        showMap(data.mapData);
+                    }
+                    return { content: data.content || data.message || '' };
+                }
+                
+                // Handle streaming
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
-                let content = '';
+                let streamedContent = '';
                 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -1815,21 +1856,12 @@
                             try {
                                 const data = JSON.parse(line.slice(6));
                                 const delta = data.choices?.[0]?.delta?.content;
-                                if (delta) content += delta;
+                                if (delta) streamedContent += delta;
                             } catch (e) {}
                         }
                     }
                 }
-                return { content };
-            }
-            
-            // Handle maps mode - show map
-            if (mode === 'maps') {
-                const data = await response.json();
-                if (data.locations && data.locations.length > 0) {
-                    showMap(data);
-                }
-                return { content: data.message || `Found ${data.locations?.length || 0} location(s)` };
+                return { content: streamedContent };
             }
 
             const data = await response.json();

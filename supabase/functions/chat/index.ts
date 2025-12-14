@@ -160,7 +160,6 @@ IMPORTANT: Only respond with valid JSON. No markdown code blocks.`;
 async function getWeatherData(location: string, apiKey: string): Promise<string> {
   console.log("Getting weather for:", location);
   
-  // Use web search with grounding for real-time weather
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -188,56 +187,52 @@ async function getWeatherData(location: string, apiKey: string): Promise<string>
   return data.choices?.[0]?.message?.content || `Weather data unavailable for ${location}.`;
 }
 
-// Detect file type from extension
-function getFileTypeInfo(filename: string, mimeType: string): { type: string; category: string; canRead: boolean } {
-  const ext = filename.toLowerCase().split('.').pop() || '';
-  
-  // Image types
-  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'];
-  if (imageExts.includes(ext) || mimeType.startsWith('image/')) {
-    return { type: 'image', category: ext.toUpperCase() + ' Image', canRead: false };
-  }
-  
-  // Code/markup types
-  const codeExts: Record<string, string> = {
-    'js': 'JavaScript', 'jsx': 'JSX', 'ts': 'TypeScript', 'tsx': 'TSX',
-    'py': 'Python', 'java': 'Java', 'cpp': 'C++', 'c': 'C', 'cs': 'C#',
-    'go': 'Go', 'rs': 'Rust', 'rb': 'Ruby', 'php': 'PHP', 'swift': 'Swift',
-    'kt': 'Kotlin', 'scala': 'Scala', 'r': 'R', 'sql': 'SQL', 'sh': 'Shell',
-    'bash': 'Bash', 'ps1': 'PowerShell', 'lua': 'Lua', 'perl': 'Perl'
-  };
-  if (codeExts[ext]) {
-    return { type: 'code', category: codeExts[ext], canRead: true };
-  }
-  
-  // Markup types
-  const markupExts: Record<string, string> = {
-    'html': 'HTML', 'htm': 'HTML', 'xml': 'XML', 'xhtml': 'XHTML',
-    'css': 'CSS', 'scss': 'SCSS', 'sass': 'Sass', 'less': 'LESS',
-    'md': 'Markdown', 'markdown': 'Markdown', 'yaml': 'YAML', 'yml': 'YAML',
-    'json': 'JSON', 'toml': 'TOML', 'ini': 'INI', 'cfg': 'Config'
-  };
-  if (markupExts[ext]) {
-    return { type: 'markup', category: markupExts[ext], canRead: true };
-  }
-  
-  // Text types
-  const textExts = ['txt', 'log', 'csv', 'tsv', 'rtf', 'tex', 'rst'];
-  if (textExts.includes(ext) || mimeType.startsWith('text/')) {
-    return { type: 'text', category: 'Text File', canRead: true };
-  }
-  
-  // Document types (not directly readable but can describe)
-  const docExts: Record<string, string> = {
-    'pdf': 'PDF Document', 'doc': 'Word Document', 'docx': 'Word Document',
-    'xls': 'Excel Spreadsheet', 'xlsx': 'Excel Spreadsheet',
-    'ppt': 'PowerPoint', 'pptx': 'PowerPoint'
-  };
-  if (docExts[ext]) {
-    return { type: 'document', category: docExts[ext], canRead: false };
-  }
-  
-  return { type: 'unknown', category: 'File', canRead: false };
+// Process messages to handle images for vision
+function processMessagesForVision(messages: any[]): any[] {
+  return messages.map((msg: any) => {
+    if (msg.role === "user" && typeof msg.content === "string") {
+      // Check if the message contains base64 image data
+      const base64ImageRegex = /data:image\/(jpeg|jpg|png|gif|webp);base64,([A-Za-z0-9+/=]+)/g;
+      const matches = [...msg.content.matchAll(base64ImageRegex)];
+      
+      if (matches.length > 0) {
+        console.log("Found", matches.length, "images in message");
+        
+        // Extract text content (remove base64 data and cleanup)
+        let textContent = msg.content;
+        textContent = textContent.replace(base64ImageRegex, '').trim();
+        textContent = textContent.replace(/\[Image:.*?\]\nAnalyze this image:/g, '').trim();
+        textContent = textContent.replace(/\[Attached files context\]\n?/g, '').trim();
+        textContent = textContent.replace(/\[User message\]\n?/g, '').trim();
+        textContent = textContent.replace(/\[File Type:.*?\]\n?/g, '').trim();
+        textContent = textContent.replace(/\n{2,}/g, '\n').trim();
+        
+        // Build multimodal content array
+        const content: any[] = [];
+        
+        // Add images first
+        for (const match of matches) {
+          const mimeType = `image/${match[1] === 'jpg' ? 'jpeg' : match[1]}`;
+          content.push({
+            type: "image_url",
+            image_url: {
+              url: `data:${mimeType};base64,${match[2]}`
+            }
+          });
+        }
+        
+        // Add text content
+        content.push({
+          type: "text",
+          text: textContent || "Please analyze this image and describe what you see in detail."
+        });
+        
+        console.log("Created multimodal message with", matches.length, "images and text:", textContent.substring(0, 100));
+        return { role: msg.role, content };
+      }
+    }
+    return msg;
+  });
 }
 
 serve(async (req) => {
@@ -253,7 +248,9 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Build system prompt based on mode with file handling instructions
+    console.log("Chat request - mode:", mode, "messages:", messages.length);
+
+    // Build system prompt based on mode
     const fileHandlingInstructions = `
 When files are attached:
 1. First identify the file type from its extension (e.g., .jpg, .py, .txt)
@@ -291,6 +288,9 @@ You have access to web_search if you need reference information for image prompt
     const systemPrompt = systemPrompts[mode] || systemPrompts.chat;
     const model = mode === "images" ? "google/gemini-2.5-flash" : "google/gemini-3-pro-preview";
 
+    // Process messages to handle images properly
+    const processedMessages = processMessagesForVision(messages);
+
     // First call to check if tools are needed
     const initialResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -302,7 +302,7 @@ You have access to web_search if you need reference information for image prompt
         model,
         messages: [
           { role: "system", content: systemPrompt },
-          ...messages,
+          ...processedMessages,
         ],
         tools: mode !== "images" ? tools : undefined,
         tool_choice: mode !== "images" ? "auto" : undefined,
@@ -324,7 +324,7 @@ You have access to web_search if you need reference information for image prompt
       }
       const errorText = await initialResponse.text();
       console.error("AI gateway error:", initialResponse.status, errorText);
-      return new Response(JSON.stringify({ error: "AI service error" }), {
+      return new Response(JSON.stringify({ error: "AI service error: " + errorText }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -342,7 +342,7 @@ You have access to web_search if you need reference information for image prompt
       
       for (const toolCall of assistantMessage.tool_calls) {
         const functionName = toolCall.function.name;
-        const args = JSON.parse(toolCall.function.argument || toolCall.function.arguments || "{}");
+        const args = JSON.parse(toolCall.function.arguments || "{}");
         
         let result: string | any = "";
         
@@ -366,7 +366,7 @@ You have access to web_search if you need reference information for image prompt
       // Make final call with tool results
       const finalMessages = [
         { role: "system", content: systemPrompt },
-        ...messages,
+        ...processedMessages,
         assistantMessage,
         ...toolResults
       ];
@@ -393,9 +393,8 @@ You have access to web_search if you need reference information for image prompt
         });
       }
 
-      // If we have map data, we need to return it specially
+      // If we have map data, read stream and include map data in response
       if (mapData) {
-        // For map data, we read the stream and include map data in response
         const reader = finalResponse.body?.getReader();
         const decoder = new TextDecoder();
         let fullContent = "";
@@ -441,7 +440,7 @@ You have access to web_search if you need reference information for image prompt
         model,
         messages: [
           { role: "system", content: systemPrompt },
-          ...messages,
+          ...processedMessages,
         ],
         stream: true,
       }),
@@ -450,7 +449,7 @@ You have access to web_search if you need reference information for image prompt
     if (!streamResponse.ok) {
       const errorText = await streamResponse.text();
       console.error("Stream error:", errorText);
-      return new Response(JSON.stringify({ error: "AI service error" }), {
+      return new Response(JSON.stringify({ error: "AI service error: " + errorText }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
