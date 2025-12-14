@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Mic, Loader2, Upload, X, MessageSquare, Image, Hammer, Download, Volume2, Search, MapPin } from "lucide-react";
+import { Send, Mic, Loader2, Upload, X, MessageSquare, Image, Hammer, Download, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -13,8 +13,10 @@ interface UploadedFile {
   id: string;
   name: string;
   type: string;
+  category: string;
   content: string;
   preview?: string;
+  canRead: boolean;
 }
 
 interface ChatInterfaceProps {
@@ -29,8 +31,6 @@ const modes = [
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "images", label: "Images", icon: Image },
   { id: "code", label: "Build", icon: Hammer },
-  { id: "search", label: "Search", icon: Search },
-  { id: "maps", label: "Maps", icon: MapPin },
 ];
 
 interface MapData {
@@ -49,6 +49,63 @@ interface MapData {
     to: string;
     waypoints?: string[];
   };
+}
+
+// Detect file type from extension
+function getFileTypeInfo(filename: string, mimeType: string): { type: string; category: string; canRead: boolean } {
+  const ext = filename.toLowerCase().split('.').pop() || '';
+  
+  // Image types - supported: jpg, jpeg, png, svg
+  const supportedImageExts = ['jpg', 'jpeg', 'png', 'svg'];
+  const otherImageExts = ['gif', 'webp', 'bmp', 'ico', 'heic', 'heif'];
+  
+  if (supportedImageExts.includes(ext)) {
+    return { type: 'image', category: ext.toUpperCase() + ' Image', canRead: true };
+  }
+  if (otherImageExts.includes(ext) || mimeType.startsWith('image/')) {
+    return { type: 'image', category: ext.toUpperCase() + ' Image (unsupported format)', canRead: false };
+  }
+  
+  // Code types
+  const codeExts: Record<string, string> = {
+    'js': 'JavaScript', 'jsx': 'JSX', 'ts': 'TypeScript', 'tsx': 'TSX',
+    'py': 'Python', 'java': 'Java', 'cpp': 'C++', 'c': 'C', 'cs': 'C#',
+    'go': 'Go', 'rs': 'Rust', 'rb': 'Ruby', 'php': 'PHP', 'swift': 'Swift',
+    'kt': 'Kotlin', 'scala': 'Scala', 'r': 'R', 'sql': 'SQL', 'sh': 'Shell',
+    'bash': 'Bash', 'ps1': 'PowerShell', 'lua': 'Lua', 'perl': 'Perl'
+  };
+  if (codeExts[ext]) {
+    return { type: 'code', category: codeExts[ext], canRead: true };
+  }
+  
+  // Markup types
+  const markupExts: Record<string, string> = {
+    'html': 'HTML', 'htm': 'HTML', 'xml': 'XML', 'xhtml': 'XHTML',
+    'css': 'CSS', 'scss': 'SCSS', 'sass': 'Sass', 'less': 'LESS',
+    'md': 'Markdown', 'markdown': 'Markdown', 'yaml': 'YAML', 'yml': 'YAML',
+    'json': 'JSON', 'toml': 'TOML', 'ini': 'INI', 'cfg': 'Config'
+  };
+  if (markupExts[ext]) {
+    return { type: 'markup', category: markupExts[ext], canRead: true };
+  }
+  
+  // Text types
+  const textExts = ['txt', 'log', 'csv', 'tsv', 'rtf', 'tex', 'rst'];
+  if (textExts.includes(ext) || mimeType.startsWith('text/')) {
+    return { type: 'text', category: 'Text File', canRead: true };
+  }
+  
+  // Document types
+  const docExts: Record<string, string> = {
+    'pdf': 'PDF Document', 'doc': 'Word Document', 'docx': 'Word Document',
+    'xls': 'Excel Spreadsheet', 'xlsx': 'Excel Spreadsheet',
+    'ppt': 'PowerPoint', 'pptx': 'PowerPoint'
+  };
+  if (docExts[ext]) {
+    return { type: 'document', category: docExts[ext], canRead: false };
+  }
+  
+  return { type: 'unknown', category: 'File', canRead: false };
 }
 
 export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSaveMessage, onModeChange }: ChatInterfaceProps) => {
@@ -77,7 +134,6 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     scrollToBottom();
   }, [messages]);
 
-  // Cleanup speech recognition on unmount
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
@@ -96,12 +152,8 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
         return "Describe the image you'd like to create, and I'll generate it for you!";
       case "code":
         return "I'm ready to help you build, debug, or explain code. What would you like to create?";
-      case "search":
-        return "Ask me anything and I'll search the web to find up-to-date information with citations!";
-      case "maps":
-        return "Tell me a place or ask for directions, and I'll show it on an interactive map!";
       default:
-        return "Hello! I'm Lepen AI. How can I assist you today?";
+        return "Hello! I'm Lepen AI. Ask me anything - I can search the web, show locations on maps, get weather info, and more!";
     }
   };
 
@@ -119,6 +171,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
         continue;
       }
 
+      const fileInfo = getFileTypeInfo(file.name, file.type);
       const reader = new FileReader();
       
       reader.onload = (event) => {
@@ -127,15 +180,17 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
         const newFile: UploadedFile = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
           name: file.name,
-          type: file.type,
+          type: fileInfo.type,
+          category: fileInfo.category,
           content: result,
-          preview: file.type.startsWith("image/") ? result : undefined,
+          preview: fileInfo.type === 'image' ? result : undefined,
+          canRead: fileInfo.canRead,
         };
         
         setUploadedFiles((prev) => [...prev, newFile]);
         
         toast({
-          title: "File uploaded",
+          title: `${fileInfo.category} uploaded`,
           description: `${file.name} added to context`,
         });
       };
@@ -148,15 +203,10 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
         });
       };
 
-      // Always read as base64 for images to preserve data for AI analysis
-      if (file.type.startsWith("image/")) {
+      // Read as base64 for images, text for readable files
+      if (fileInfo.type === 'image') {
         reader.readAsDataURL(file);
-      } else if (file.type.startsWith("text/") || 
-          file.type === "application/json" ||
-          file.type === "application/javascript" ||
-          file.name.endsWith(".md") ||
-          file.name.endsWith(".txt") ||
-          file.name.endsWith(".csv")) {
+      } else if (fileInfo.canRead) {
         reader.readAsText(file);
       } else {
         reader.readAsDataURL(file);
@@ -182,10 +232,8 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
       return;
     }
 
-    // Cancel any ongoing speech
     window.speechSynthesis.cancel();
     
-    // Clean the text (remove markdown, code blocks, etc.)
     const cleanText = text
       .replace(/```[\s\S]*?```/g, "Code block omitted.")
       .replace(/`[^`]+`/g, "")
@@ -239,6 +287,18 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
       throw new Error(error.error || "Failed to get response");
     }
 
+    const contentType = response.headers.get("content-type");
+    
+    // Check if it's a JSON response (contains map data)
+    if (contentType?.includes("application/json")) {
+      const data = await response.json();
+      if (data.mapData) {
+        setMapData(data.mapData);
+      }
+      return data.content || data.message || "";
+    }
+
+    // Stream response
     const reader = response.body?.getReader();
     if (!reader) throw new Error("No reader available");
 
@@ -316,135 +376,38 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     return await response.json();
   }, []);
 
-  const streamWebSearch = useCallback(async (query: string) => {
-    const searchMessages = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/web-search`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ query, messages: searchMessages }),
-      }
-    );
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Failed to search the web");
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error("No reader available");
-
-    const decoder = new TextDecoder();
-    let assistantContent = "";
-    let buffer = "";
-
-    const assistantMessage: Message = {
-      id: Date.now().toString(),
-      conversation_id: conversationId || "",
-      role: "assistant",
-      content: "",
-      created_at: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, assistantMessage]);
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      let newlineIndex;
-      while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
-        let line = buffer.slice(0, newlineIndex);
-        buffer = buffer.slice(newlineIndex + 1);
-
-        if (line.endsWith("\r")) line = line.slice(0, -1);
-        if (line.startsWith(":") || line.trim() === "") continue;
-        if (!line.startsWith("data: ")) continue;
-
-        const jsonStr = line.slice(6).trim();
-        if (jsonStr === "[DONE]") break;
-
-        try {
-          const parsed = JSON.parse(jsonStr);
-          const content = parsed.choices?.[0]?.delta?.content;
-          if (content) {
-            assistantContent += content;
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantMessage.id
-                  ? { ...m, content: assistantContent }
-                  : m
-              )
-            );
-          }
-        } catch {
-          // Incomplete JSON
-        }
-      }
-    }
-
-    return assistantContent;
-  }, [messages, conversationId]);
-
-  const searchMap = useCallback(async (query: string) => {
-    const mapMessages = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/map-search`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ query, messages: mapMessages }),
-      }
-    );
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Failed to search maps");
-    }
-
-    return await response.json();
-  }, [messages]);
-
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
     const userContent = input.trim();
     
-    // Build file context with proper image handling
+    // Build file context with improved type information
     let filesContext = "";
     if (uploadedFiles.length > 0) {
       filesContext = uploadedFiles.map((f) => {
-        if (f.type.startsWith("image/")) {
-          // Include base64 data for image analysis
-          return `[Image: ${f.name}]\nBase64 image data: ${f.content}`;
+        const typeInfo = `[File Type: ${f.category}]`;
+        
+        if (f.type === 'image' && f.canRead) {
+          // Supported image - send base64 for analysis
+          return `${typeInfo}\n[Image: ${f.name}]\nAnalyze this image:\n${f.content}`;
+        } else if (f.type === 'image') {
+          return `${typeInfo}\n[Image: ${f.name}] - Unsupported image format. Please convert to JPG, PNG, or SVG.`;
+        } else if (f.canRead) {
+          // Readable file - send content
+          return `${typeInfo}\n[File: ${f.name}]\nContent:\n${f.content}`;
+        } else {
+          return `${typeInfo}\n[File: ${f.name}] - This file type cannot be read directly.`;
         }
-        return `[File: ${f.name}]\n${f.content}`;
       }).join("\n\n");
     }
 
-    // Create display message (without file context for cleaner UI)
+    // Create display message
     const userMessage: Message = {
       id: Date.now().toString(),
       conversation_id: conversationId || "",
       role: "user",
       content: uploadedFiles.length > 0 
-        ? `${userContent}\n\n📎 Attached: ${uploadedFiles.map(f => f.name).join(", ")}`
+        ? `${userContent}\n\n📎 Attached: ${uploadedFiles.map(f => `${f.name} (${f.category})`).join(", ")}`
         : userContent,
       created_at: new Date().toISOString(),
     };
@@ -452,9 +415,8 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
+    setMapData(null);
 
-    // Clear files after sending
-    const filesToSend = [...uploadedFiles];
     setUploadedFiles([]);
 
     try {
@@ -477,28 +439,6 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
 
         if (onSaveMessage) {
           await onSaveMessage("assistant", assistantMessage.content, result.imageUrl);
-        }
-      } else if (mode === "search") {
-        const assistantContent = await streamWebSearch(userContent);
-        
-        if (onSaveMessage && assistantContent) {
-          await onSaveMessage("assistant", assistantContent);
-        }
-      } else if (mode === "maps") {
-        const result = await searchMap(userContent);
-        setMapData(result);
-        
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          conversation_id: conversationId || "",
-          role: "assistant",
-          content: result.message || `Found ${result.locations?.length || 0} location(s). Check the map below!`,
-          created_at: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
-
-        if (onSaveMessage) {
-          await onSaveMessage("assistant", assistantMessage.content);
         }
       } else {
         const assistantContent = await streamChat(userContent, filesContext);
@@ -540,7 +480,6 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
         recognitionRef.current.stop();
       }
       setIsListening(false);
-      // Dismiss the listening toast
       if (toastIdRef.current) {
         dismiss(toastIdRef.current);
         toastIdRef.current = null;
@@ -573,7 +512,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
       const { id } = toast({
         title: "Listening...",
         description: "Speak now. Click the mic again to stop.",
-        duration: 60000, // Long duration
+        duration: 60000,
       });
       toastIdRef.current = id;
     };
@@ -597,7 +536,6 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
       console.error("Speech recognition error:", event.error);
       setIsListening(false);
       
-      // Dismiss the listening toast
       if (toastIdRef.current) {
         dismiss(toastIdRef.current);
         toastIdRef.current = null;
@@ -629,7 +567,6 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     recognition.onend = () => {
       setIsListening(false);
       recognitionRef.current = null;
-      // Dismiss the listening toast
       if (toastIdRef.current) {
         dismiss(toastIdRef.current);
         toastIdRef.current = null;
@@ -682,7 +619,8 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
                 {file.preview && (
                   <img src={file.preview} alt="" className="w-5 h-5 rounded object-cover" />
                 )}
-                <span className="truncate max-w-[120px]">{file.name}</span>
+                <span className="truncate max-w-[100px]">{file.name}</span>
+                <span className="text-xs text-muted-foreground">({file.category})</span>
                 <button 
                   onClick={() => removeFile(file.id)}
                   className="hover:text-destructive transition-colors"
@@ -773,8 +711,9 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
             </div>
           ))
         )}
-        {/* Map View for maps mode */}
-        {mode === "maps" && mapData && mapData.locations && mapData.locations.length > 0 && (
+        
+        {/* Map View - shown when mapData exists */}
+        {mapData && mapData.locations && mapData.locations.length > 0 && (
           <div className="mt-4">
             <MapView
               locations={mapData.locations}
@@ -785,12 +724,13 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
             />
           </div>
         )}
+        
         {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
           <div className="flex justify-start">
             <div className="glass border-primary/20 px-5 py-3 rounded-2xl">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm">{mode === "search" ? "Searching the web..." : mode === "maps" ? "Finding locations..." : "Thinking..."}</span>
+                <span className="text-sm">Thinking...</span>
               </div>
             </div>
           </div>
@@ -807,12 +747,12 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
             onChange={handleFileUpload}
             className="hidden"
             multiple
-            accept="text/*,application/json,image/*,.md,.csv,.txt,.js,.ts,.py,.html,.css"
+            accept="text/*,application/json,image/jpeg,image/jpg,image/png,image/svg+xml,.md,.csv,.txt,.js,.ts,.py,.html,.css,.jsx,.tsx,.json,.xml,.yaml,.yml"
           />
           <Button
             onClick={() => fileInputRef.current?.click()}
             className="h-[60px] px-4 bg-primary/80 hover:bg-primary text-primary-foreground"
-            title="Upload files"
+            title="Upload files (JPG, PNG, SVG, or text/code files)"
           >
             <Upload className="w-5 h-5" />
           </Button>
