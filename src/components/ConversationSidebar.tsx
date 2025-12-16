@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MessageSquare, Plus, Trash2, LogOut, X, Search, Settings, Edit2, Check, Download, FileJson, FileText, Home } from "lucide-react";
+import { MessageSquare, Plus, Trash2, LogOut, X, Search, Settings, Edit2, Check, Download, FileJson, FileText, Home, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -234,6 +234,17 @@ export const ConversationSidebar = ({
           >
             <Home className="w-4 h-4 mr-2" />
             ← HOMEPAGE
+          </Button>
+          <Button
+            onClick={() => {
+              navigate("/profile");
+              onClose();
+            }}
+            variant="ghost"
+            className="w-full justify-start text-foreground/80 hover:text-foreground hover:bg-primary/10"
+          >
+            <User className="w-4 h-4 mr-2" />
+            Profile
           </Button>
           <Button
             onClick={() => {

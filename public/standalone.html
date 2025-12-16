@@ -1109,6 +1109,13 @@
                     </svg>
                     HOMEPAGE
                 </button>
+                <button class="new-chat-btn" id="profileBtn" style="background: transparent; border: 1px solid var(--accent-primary); margin-bottom: 12px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    Profile
+                </button>
                 <div class="user-info" id="userInfo">
                     <div class="user-avatar" id="userAvatar">?</div>
                     <div class="user-details">
@@ -1138,10 +1145,31 @@
                             <line x1="3" y1="18" x2="21" y2="18"/>
                         </svg>
                     </button>
-                    <svg class="logo" viewBox="0 0 100 100" fill="none">
-                        <!-- Using the new logo as background -->
+                    <svg class="logo" viewBox="0 0 100 100" style="width: 48px; height: 48px;">
+                        <defs>
+                            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="var(--accent-primary)" />
+                                <stop offset="50%" stop-color="var(--accent-secondary)" />
+                                <stop offset="100%" stop-color="var(--accent-primary)" />
+                            </linearGradient>
+                            <filter id="glow">
+                                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                                <feMerge>
+                                    <feMergeNode in="coloredBlur"/>
+                                    <feMergeNode in="SourceGraphic"/>
+                                </feMerge>
+                            </filter>
+                        </defs>
+                        <circle cx="50" cy="50" r="45" fill="var(--bg-secondary)" stroke="url(#logoGradient)" stroke-width="2" opacity="0.9"/>
+                        <path d="M 30 25 L 30 70 L 55 70" fill="none" stroke="url(#logoGradient)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+                        <circle cx="65" cy="35" r="4" fill="url(#logoGradient)" class="pulse-dot"/>
+                        <circle cx="72" cy="50" r="3" fill="url(#logoGradient)" class="pulse-dot" style="animation-delay: 0.3s"/>
+                        <circle cx="60" cy="55" r="2.5" fill="url(#logoGradient)" class="pulse-dot" style="animation-delay: 0.6s"/>
+                        <line x1="55" y1="45" x2="65" y2="35" stroke="url(#logoGradient)" stroke-width="1.5" opacity="0.6"/>
+                        <line x1="55" y1="55" x2="72" y2="50" stroke="url(#logoGradient)" stroke-width="1.5" opacity="0.6"/>
+                        <line x1="55" y1="55" x2="60" y2="55" stroke="url(#logoGradient)" stroke-width="1.5" opacity="0.6"/>
+                        <line x1="65" y1="35" x2="72" y2="50" stroke="url(#logoGradient)" stroke-width="1.5" opacity="0.4"/>
                     </svg>
-                    <img src="logo.png" alt="Lepen AI" class="logo" style="width: 48px; height: 48px; object-fit: contain;">
                     <span class="logo-text">Lepen AI</span>
                 </div>
 
@@ -1196,7 +1224,15 @@
             <div class="chat-area" id="chatArea">
                 <!-- Welcome Screen -->
                 <div class="welcome-screen" id="welcomeScreen">
-                    <img src="logo.png" alt="Lepen AI" class="welcome-logo" style="width: 120px; height: 120px; object-fit: contain; border-radius: 12px;">
+                    <svg class="welcome-logo" viewBox="0 0 100 100" style="width: 120px; height: 120px;">
+                        <circle cx="50" cy="50" r="45" fill="var(--bg-secondary)" stroke="url(#logoGradient)" stroke-width="2" opacity="0.9"/>
+                        <path d="M 30 25 L 30 70 L 55 70" fill="none" stroke="url(#logoGradient)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="65" cy="35" r="4" fill="url(#logoGradient)"/>
+                        <circle cx="72" cy="50" r="3" fill="url(#logoGradient)"/>
+                        <circle cx="60" cy="55" r="2.5" fill="url(#logoGradient)"/>
+                        <line x1="55" y1="45" x2="65" y2="35" stroke="url(#logoGradient)" stroke-width="1.5" opacity="0.6"/>
+                        <line x1="55" y1="55" x2="72" y2="50" stroke="url(#logoGradient)" stroke-width="1.5" opacity="0.6"/>
+                    </svg>
                     <h1 class="welcome-title">Welcome to Lepen AI</h1>
                     <p class="welcome-subtitle">Your intelligent assistant for chat, image generation, and code building. How can I help you today?</p>
 
@@ -1537,6 +1573,19 @@
                 elements.sidebar.classList.remove('open');
                 elements.sidebarOverlay.classList.remove('active');
             });
+
+            // Profile button
+            document.getElementById('profileBtn')?.addEventListener('click', () => {
+                if (state.user) {
+                    openModal('settingsModal');
+                    document.getElementById('settingsName').value = state.user.user_metadata?.display_name || '';
+                } else {
+                    showToast('Please log in to view your profile', 'error');
+                    openModal('authModal');
+                }
+                elements.sidebar.classList.remove('open');
+                elements.sidebarOverlay.classList.remove('active');
+            });
         }
 
         // ==================== Voice Recognition ====================
@@ -1681,15 +1730,21 @@
             clearUploadedFiles();
 
             // Show loading indicator
-            const loadingEl = createTypingIndicator();
+            const loadingEl = createTypingIndicator('Thinking...');
             elements.messagesContainer.appendChild(loadingEl);
             scrollToBottom();
 
             try {
+                // Update to "Refining response..." after a short delay
+                const refineTimeout = setTimeout(() => {
+                    updateTypingIndicatorText(loadingEl, 'Refining response...');
+                }, 1500);
+                
                 // Send to API
                 const response = await sendToAPI(content, state.currentMode);
                 
-                // Remove loading indicator
+                // Clear timeout and remove loading indicator
+                clearTimeout(refineTimeout);
                 loadingEl.remove();
 
                 // Add assistant message
@@ -2005,7 +2060,7 @@
             return result;
         }
 
-        function createTypingIndicator() {
+        function createTypingIndicator(text = 'Thinking...') {
             const el = document.createElement('div');
             el.className = 'message assistant';
             el.innerHTML = `
@@ -2023,12 +2078,17 @@
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
                                 <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
                             </svg>
-                            <span>Thinking...</span>
+                            <span class="typing-text">${text}</span>
                         </div>
                     </div>
                 </div>
             `;
             return el;
+        }
+
+        function updateTypingIndicatorText(indicator, text) {
+            const textEl = indicator.querySelector('.typing-text');
+            if (textEl) textEl.textContent = text;
         }
 
 

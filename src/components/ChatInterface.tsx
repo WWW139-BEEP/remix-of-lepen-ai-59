@@ -310,10 +310,13 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
       id: Date.now().toString(),
       conversation_id: conversationId || "",
       role: "assistant",
-      content: "Thinking...",
+      content: "",
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, assistantMessage]);
+    
+    // Track if we've received any content
+    let hasReceivedContent = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -731,12 +734,22 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
           </div>
         )}
         
-        {isLoading && (
+        {isLoading && messages.length > 0 && messages[messages.length - 1]?.role === "user" && (
           <div className="flex justify-start">
             <div className="glass border-primary/20 px-5 py-3 rounded-2xl">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span className="text-sm">Thinking...</span>
+              </div>
+            </div>
+          </div>
+        )}
+        {isLoading && messages.length > 0 && messages[messages.length - 1]?.role === "assistant" && !messages[messages.length - 1]?.content && (
+          <div className="flex justify-start">
+            <div className="glass border-primary/20 px-5 py-3 rounded-2xl">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Refining response...</span>
               </div>
             </div>
           </div>
