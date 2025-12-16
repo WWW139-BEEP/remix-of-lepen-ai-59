@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lepen AI - Your Intelligent Assistant</title>
-    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="icon" type="image/png" href="logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -1139,35 +1139,9 @@
                         </svg>
                     </button>
                     <svg class="logo" viewBox="0 0 100 100" fill="none">
-                        <defs>
-                            <radialGradient id="bulbGlow" cx="50%" cy="30%" r="50%">
-                                <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1"/>
-                                <stop offset="50%" style="stop-color:#22c55e;stop-opacity:0.8"/>
-                                <stop offset="100%" style="stop-color:#22c55e;stop-opacity:0"/>
-                            </radialGradient>
-                            <linearGradient id="glassGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" style="stop-color:rgba(255,255,255,0.4)"/>
-                                <stop offset="50%" style="stop-color:rgba(255,255,255,0.1)"/>
-                                <stop offset="100%" style="stop-color:rgba(255,255,255,0.3)"/>
-                            </linearGradient>
-                            <filter id="glow">
-                                <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                                <feMerge>
-                                    <feMergeNode in="coloredBlur"/>
-                                    <feMergeNode in="SourceGraphic"/>
-                                </feMerge>
-                            </filter>
-                        </defs>
-                        <circle cx="50" cy="35" r="28" fill="url(#bulbGlow)" filter="url(#glow)"/>
-                        <ellipse cx="50" cy="35" rx="22" ry="25" fill="url(#glassGradient)" stroke="rgba(255,255,255,0.5)" stroke-width="1"/>
-                        <ellipse cx="50" cy="35" rx="15" ry="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
-                        <rect x="44" y="58" width="12" height="8" rx="1" fill="#9ca3af"/>
-                        <line x1="44" y1="61" x2="56" y2="61" stroke="#6b7280" stroke-width="1"/>
-                        <line x1="44" y1="64" x2="56" y2="64" stroke="#6b7280" stroke-width="1"/>
-                        <path d="M47 66 L50 85 L53 66" fill="#4b5563"/>
-                        <path d="M48 80 L50 90 L52 80" fill="#6366f1" stroke="#818cf8" stroke-width="0.5"/>
-                        <circle cx="50" cy="90" r="2" fill="#22c55e" filter="url(#glow)"/>
+                        <!-- Using the new logo as background -->
                     </svg>
+                    <img src="logo.png" alt="Lepen AI" class="logo" style="width: 48px; height: 48px; object-fit: contain;">
                     <span class="logo-text">Lepen AI</span>
                 </div>
 
@@ -1222,36 +1196,7 @@
             <div class="chat-area" id="chatArea">
                 <!-- Welcome Screen -->
                 <div class="welcome-screen" id="welcomeScreen">
-                    <svg class="welcome-logo" viewBox="0 0 100 100" fill="none">
-                        <defs>
-                            <radialGradient id="bulbGlow2" cx="50%" cy="30%" r="50%">
-                                <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1"/>
-                                <stop offset="50%" style="stop-color:#22c55e;stop-opacity:0.8"/>
-                                <stop offset="100%" style="stop-color:#22c55e;stop-opacity:0"/>
-                            </radialGradient>
-                            <linearGradient id="glassGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" style="stop-color:rgba(255,255,255,0.4)"/>
-                                <stop offset="50%" style="stop-color:rgba(255,255,255,0.1)"/>
-                                <stop offset="100%" style="stop-color:rgba(255,255,255,0.3)"/>
-                            </linearGradient>
-                            <filter id="glow2">
-                                <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                                <feMerge>
-                                    <feMergeNode in="coloredBlur"/>
-                                    <feMergeNode in="SourceGraphic"/>
-                                </feMerge>
-                            </filter>
-                        </defs>
-                        <circle cx="50" cy="35" r="28" fill="url(#bulbGlow2)" filter="url(#glow2)"/>
-                        <ellipse cx="50" cy="35" rx="22" ry="25" fill="url(#glassGradient2)" stroke="rgba(255,255,255,0.5)" stroke-width="1"/>
-                        <ellipse cx="50" cy="35" rx="15" ry="18" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
-                        <rect x="44" y="58" width="12" height="8" rx="1" fill="#9ca3af"/>
-                        <line x1="44" y1="61" x2="56" y2="61" stroke="#6b7280" stroke-width="1"/>
-                        <line x1="44" y1="64" x2="56" y2="64" stroke="#6b7280" stroke-width="1"/>
-                        <path d="M47 66 L50 85 L53 66" fill="#4b5563"/>
-                        <path d="M48 80 L50 90 L52 80" fill="#6366f1" stroke="#818cf8" stroke-width="0.5"/>
-                        <circle cx="50" cy="90" r="2" fill="#22c55e" filter="url(#glow2)"/>
-                    </svg>
+                    <img src="logo.png" alt="Lepen AI" class="welcome-logo" style="width: 120px; height: 120px; object-fit: contain; border-radius: 12px;">
                     <h1 class="welcome-title">Welcome to Lepen AI</h1>
                     <p class="welcome-subtitle">Your intelligent assistant for chat, image generation, and code building. How can I help you today?</p>
 
