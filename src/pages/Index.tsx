@@ -104,10 +104,13 @@ const Index = () => {
     setActiveMode(mode);
     setShowLanding(false);
     
-    const conv = await createConversation(mode);
-    if (conv) {
-      setActiveConversationId(conv.id);
-      setConversationMessages([]);
+    // Only create new conversation if there's no active one or if coming from landing page
+    if (!activeConversationId) {
+      const conv = await createConversation(mode);
+      if (conv) {
+        setActiveConversationId(conv.id);
+        setConversationMessages([]);
+      }
     }
   };
 
@@ -237,24 +240,47 @@ const Index = () => {
 
       {/* Info Modal */}
       <Dialog open={infoOpen} onOpenChange={setInfoOpen}>
-        <DialogContent className="glass-strong border-primary/30">
+        <DialogContent className="glass-strong border-primary/30 max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl text-primary flex items-center gap-2">
               <Sparkles className="w-6 h-6 animate-sparkle" />
-              Builder Info
+              💡 Builder Information
             </DialogTitle>
           </DialogHeader>
-          <div className="text-lg font-body text-foreground">
+          <div className="text-sm font-body text-foreground space-y-4">
             <p>
+              I am{" "}
               <a 
                 href="https://arkadas.netlify.app" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-primary hover:underline font-semibold"
+                className="text-primary hover:underline font-semibold italic"
               >
-                ARKA DAS
+                𝒜𝑅𝒦𝒜 𝒟𝒜𝒮
               </a>
+              , the creator and developer of LEPEN.
             </p>
+            <p className="text-muted-foreground">
+              LEPEN is an AI system I built with a focus on intelligence, clarity, and practical usefulness. My goal was to create an AI that thinks logically, responds thoughtfully, and evolves through continuous improvement rather than unnecessary complexity.
+            </p>
+            <div className="space-y-2">
+              <p className="font-medium text-foreground">In building LEPEN, I emphasize:</p>
+              <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
+                <li>Smart reasoning and problem-solving</li>
+                <li>Clean, scalable system design</li>
+                <li>Ethical and responsible AI behavior</li>
+                <li>Simplicity combined with modern technology</li>
+              </ul>
+            </div>
+            <p className="text-muted-foreground">
+              LEPEN represents my passion for artificial intelligence, software engineering, and innovation. It is designed to grow over time, adapt to real-world needs, and remain accessible to users of all levels.
+            </p>
+            <div className="border-t border-primary/20 pt-4">
+              <p className="font-medium text-primary">Vision:</p>
+              <p className="italic text-muted-foreground">
+                "To build an AI that turns ideas into understanding—where knowledge meets clarity."
+              </p>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

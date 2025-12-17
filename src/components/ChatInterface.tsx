@@ -653,7 +653,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
             </div>
           </div>
         ) : (
-          messages.map((message) => (
+          messages.filter(m => m.role === "user" || m.content).map((message) => (
             <div
               key={message.id}
               className={cn(
