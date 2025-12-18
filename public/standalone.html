@@ -66,6 +66,30 @@
             to { transform: rotate(360deg); }
         }
 
+        @keyframes nameGlow {
+            0%, 100% {
+                background-position: 0% 50%;
+                filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.6));
+            }
+            50% {
+                background-position: 100% 50%;
+                filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.8));
+            }
+        }
+
+        .name-glow {
+            background: linear-gradient(90deg, #22c55e, #3b82f6, #22c55e);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: nameGlow 3s ease-in-out infinite;
+            text-decoration: none !important;
+            border-bottom: 2px dotted rgba(34, 197, 94, 0.6);
+            padding-bottom: 2px;
+            font-weight: 600;
+        }
+
         /* Main Layout */
         .app-container {
             display: flex;
@@ -1358,9 +1382,12 @@
                             </svg>
                         </button>
                         <button class="send-btn" id="sendBtn" title="Send message">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg id="sendIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <line x1="22" y1="2" x2="11" y2="13"/>
                                 <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                            </svg>
+                            <svg id="stopIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
+                                <rect x="6" y="6" width="12" height="12" rx="2"/>
                             </svg>
                         </button>
                     </div>
@@ -1369,7 +1396,7 @@
 
             <!-- Footer -->
             <div class="footer">
-                <a href="https://arkadas.netlify.app" target="_blank" rel="noopener" style="font-style: italic;">𝒜𝑅𝒦𝒜 𝒟𝒜𝒮</a> | © <span id="currentYear"></span> Lepen AI
+                <a href="https://arkadas.netlify.app" target="_blank" rel="noopener" class="name-glow">𝒜𝑅𝒦𝒜 𝒟𝒜𝒮</a> | © <span id="currentYear"></span> Lepen AI
             </div>
         </main>
     </div>
@@ -1806,17 +1833,43 @@
             });
         }
 
+        let currentAbortController = null;
+
         async function handleSendMessage() {
             const content = elements.chatInput.value.trim();
             if (!content && state.uploadedFiles.length === 0) return;
-            if (state.isLoading) return;
+            
+            // If loading, stop generation
+            if (state.isLoading) {
+                if (currentAbortController) {
+                    currentAbortController.abort();
+                    currentAbortController = null;
+                }
+                state.isLoading = false;
+                updateSendButton(false);
+                showToast('Response generation stopped', 'info');
+                return;
+            }
 
             state.isLoading = true;
-            elements.sendBtn.disabled = true;
+            currentAbortController = new AbortController();
+            updateSendButton(true);
 
             // Hide welcome screen
             elements.welcomeScreen.style.display = 'none';
             elements.messagesContainer.style.display = 'block';
+
+            // Get image data for image mode
+            let imageData = null;
+            if (state.currentMode === 'images') {
+                const imageFile = state.uploadedFiles.find(f => {
+                    const ext = f.name.toLowerCase().split('.').pop();
+                    return ['jpg', 'jpeg', 'png', 'svg'].includes(ext);
+                });
+                if (imageFile) {
+                    imageData = imageFile.data;
+                }
+            }
 
             // Add user message
             const userMessage = {
@@ -1844,7 +1897,7 @@
                 }, 1500);
                 
                 // Send to API
-                const response = await sendToAPI(content, state.currentMode);
+                const response = await sendToAPI(content, state.currentMode, imageData, currentAbortController.signal);
                 
                 // Clear timeout and remove loading indicator
                 clearTimeout(refineTimeout);
@@ -1865,16 +1918,35 @@
                 }
             } catch (error) {
                 loadingEl.remove();
-                showToast('Failed to get response. Please try again.', 'error');
-                console.error('API Error:', error);
+                if (error.name !== 'AbortError') {
+                    showToast('Failed to get response. Please try again.', 'error');
+                    console.error('API Error:', error);
+                }
             }
 
             state.isLoading = false;
-            elements.sendBtn.disabled = false;
+            currentAbortController = null;
+            updateSendButton(false);
             scrollToBottom();
         }
 
-        async function sendToAPI(content, mode) {
+        function updateSendButton(isLoading) {
+            const sendIcon = document.getElementById('sendIcon');
+            const stopIcon = document.getElementById('stopIcon');
+            if (isLoading) {
+                sendIcon.style.display = 'none';
+                stopIcon.style.display = 'block';
+                elements.sendBtn.style.background = 'var(--error)';
+                elements.sendBtn.title = 'Stop generation';
+            } else {
+                sendIcon.style.display = 'block';
+                stopIcon.style.display = 'none';
+                elements.sendBtn.style.background = 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))';
+                elements.sendBtn.title = 'Send message';
+            }
+        }
+
+        async function sendToAPI(content, mode, imageData = null, signal = null) {
             // Build message content with file context
             let messageContent = content;
             const lastMessage = state.messages[state.messages.length - 1];
@@ -1904,7 +1976,6 @@
                     if (isImage && file.data.startsWith('data:image/')) {
                         return `[File Type: ${category}]\n[Image: ${file.name}]\nAnalyze this image:\n${file.data}`;
                     } else if (file.data.startsWith('data:')) {
-                        // Try to decode base64 text content
                         try {
                             const base64Data = file.data.split(',')[1];
                             const textContent = atob(base64Data);
@@ -1919,7 +1990,7 @@
                 messageContent = `[Attached files context]\n${filesContext}\n\n[User message]\n${content}`;
             }
             
-            // Build messages for API - all modes use chat endpoint for interconnected tools
+            // Build messages for API
             const apiMessages = state.messages.map(m => {
                 if (m === lastMessage && m.files && m.files.length > 0) {
                     return { role: m.role, content: messageContent };
@@ -1927,11 +1998,10 @@
                 return { role: m.role, content: m.content };
             });
             
-            // Use chat endpoint for chat/build modes (interconnected tools)
-            // Use generate-image endpoint for images mode
+            // Use generate-image endpoint for images mode (with imageData for editing)
             let endpoint = mode === 'images' ? 'generate-image' : 'chat';
             let body = mode === 'images' 
-                ? { prompt: content }
+                ? { prompt: content, imageData: imageData }
                 : { messages: apiMessages, mode: mode === 'build' ? 'code' : mode };
 
             const response = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/${endpoint}`, {
@@ -1940,7 +2010,8 @@
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
                 },
-                body: JSON.stringify(body)
+                body: JSON.stringify(body),
+                signal: signal
             });
 
             if (!response.ok) {

@@ -291,9 +291,21 @@ const Index = () => {
                   href="https://arkadas.netlify.app" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="text-primary hover:underline"
+                  className="name-glow"
+                  style={{
+                    background: 'linear-gradient(90deg, #22c55e, #3b82f6, #22c55e)',
+                    backgroundSize: '200% 100%',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                    animation: 'nameGlow 3s ease-in-out infinite',
+                    textDecoration: 'none',
+                    borderBottom: '2px dotted currentColor',
+                    paddingBottom: '2px',
+                    fontWeight: 600,
+                  }}
                 >
-                  ARKA DAS
+                  𝒜𝑅𝒦𝒜 𝒟𝒜𝒮
                 </a>
               </p>
             </div>
