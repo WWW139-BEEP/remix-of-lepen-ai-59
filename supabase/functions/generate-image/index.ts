@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt } = await req.json();
+    const { prompt, imageData } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -26,6 +26,28 @@ serve(async (req) => {
     }
 
     console.log("Generating image with prompt:", prompt);
+    console.log("Has image data:", !!imageData);
+
+    // Build message content based on whether we have an image to edit
+    let messageContent: any;
+    if (imageData) {
+      // Image editing mode - send both text and image
+      messageContent = [
+        {
+          type: "text",
+          text: prompt
+        },
+        {
+          type: "image_url",
+          image_url: {
+            url: imageData
+          }
+        }
+      ];
+    } else {
+      // Text-only generation
+      messageContent = prompt;
+    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -38,7 +60,7 @@ serve(async (req) => {
         messages: [
           {
             role: "user",
-            content: prompt
+            content: messageContent
           }
         ],
         modalities: ["image", "text"]

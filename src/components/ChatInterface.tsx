@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Mic, Loader2, Upload, X, MessageSquare, Image, Hammer, Download, Volume2 } from "lucide-react";
+import { Send, Mic, Loader2, Paperclip, X, MessageSquare, Image, Hammer, Download, Volume2, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -120,6 +120,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const toastIdRef = useRef<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { toast, dismiss } = useToast();
 
   useEffect(() => {
@@ -376,7 +377,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     return assistantContent;
   }, [messages, mode, conversationId]);
 
-  const generateImage = useCallback(async (prompt: string) => {
+  const generateImage = useCallback(async (prompt: string, imageData?: string) => {
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-image`,
       {
@@ -385,7 +386,8 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, imageData }),
+        signal: abortControllerRef.current?.signal,
       }
     );
 
@@ -396,6 +398,18 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
 
     return await response.json();
   }, []);
+
+  const stopGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsLoading(false);
+    toast({
+      title: "Stopped",
+      description: "Response generation stopped",
+    });
+  }, [toast]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -437,6 +451,11 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
     setInput("");
     setIsLoading(true);
     setMapData(null);
+    abortControllerRef.current = new AbortController();
+
+    // Get image data for image mode
+    const imageFile = uploadedFiles.find(f => f.type === 'image' && f.canRead);
+    const imageData = imageFile?.content;
 
     setUploadedFiles([]);
 
@@ -446,7 +465,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
       }
 
       if (mode === "images") {
-        const result = await generateImage(userContent);
+        const result = await generateImage(userContent, imageData);
         
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -627,7 +646,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
       {uploadedFiles.length > 0 && (
         <div className="px-4 py-3 border-t border-primary/20 bg-muted/30">
           <div className="flex items-center gap-2 mb-2">
-            <Upload className="w-4 h-4 text-primary" />
+            <Paperclip className="w-4 h-4 text-primary" />
             <span className="text-sm text-foreground/80 font-body">
               Attached Files ({uploadedFiles.length})
             </span>
@@ -801,7 +820,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
             className="h-[60px] px-4 bg-primary/80 hover:bg-primary text-primary-foreground"
             title="Upload files (JPG, PNG, SVG, or text/code files)"
           >
-            <Upload className="w-5 h-5" />
+            <Paperclip className="w-5 h-5" />
           </Button>
           <div className="flex-1 relative">
             <Textarea
@@ -829,13 +848,23 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
               <Mic className="w-5 h-5" />
             </Button>
           </div>
-          <Button
-            onClick={handleSend}
-            disabled={!input.trim() || isLoading}
-            className="h-[60px] px-6 bg-primary text-primary-foreground hover:bg-primary/90 shadow-gold"
-          >
-            <Send className="w-5 h-5" />
-          </Button>
+          {isLoading ? (
+            <Button
+              onClick={stopGeneration}
+              className="h-[60px] px-6 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              title="Stop generation"
+            >
+              <Square className="w-5 h-5" />
+            </Button>
+          ) : (
+            <Button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              className="h-[60px] px-6 bg-primary text-primary-foreground hover:bg-primary/90 shadow-gold"
+            >
+              <Send className="w-5 h-5" />
+            </Button>
+          )}
         </div>
       </div>
     </div>
