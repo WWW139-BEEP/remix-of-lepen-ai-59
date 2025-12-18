@@ -244,27 +244,31 @@ const Index = () => {
           <DialogHeader>
             <DialogTitle className="font-display text-2xl text-primary flex items-center gap-2">
               <Sparkles className="w-6 h-6 animate-sparkle" />
-              💡 Builder Information
+              💡 Abouts
             </DialogTitle>
           </DialogHeader>
           <div className="text-sm font-body text-foreground space-y-4">
-            <p>
-              I am{" "}
-              <a 
-                href="https://arkadas.netlify.app" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-primary hover:underline font-semibold italic"
-              >
-                𝒜𝑅𝒦𝒜 𝒟𝒜𝒮
-              </a>
-              , the creator and developer of LEPEN.
-            </p>
-            <p className="text-muted-foreground">
-              LEPEN is an AI system I built with a focus on intelligence, clarity, and practical usefulness. My goal was to create an AI that thinks logically, responds thoughtfully, and evolves through continuous improvement rather than unnecessary complexity.
-            </p>
             <div className="space-y-2">
-              <p className="font-medium text-foreground">In building LEPEN, I emphasize:</p>
+              <p className="font-medium text-foreground">What is LEPEN?</p>
+              <p className="text-muted-foreground">
+                LEPEN is an advanced AI assistant designed with a focus on intelligence, clarity, and practical usefulness. It thinks logically, responds thoughtfully, and evolves through continuous improvement.
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <p className="font-medium text-foreground">Core Capabilities:</p>
+              <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
+                <li><strong>AI Chat</strong> - Intelligent conversations with context awareness</li>
+                <li><strong>Image Generation</strong> - Create visuals from text descriptions</li>
+                <li><strong>Code Building</strong> - Write, debug, and explain code</li>
+                <li><strong>Web Search</strong> - Real-time information from the internet</li>
+                <li><strong>Maps & Locations</strong> - Geographic data and directions</li>
+                <li><strong>Weather</strong> - Current conditions and forecasts</li>
+              </ul>
+            </div>
+            
+            <div className="space-y-2">
+              <p className="font-medium text-foreground">Design Principles:</p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
                 <li>Smart reasoning and problem-solving</li>
                 <li>Clean, scalable system design</li>
@@ -272,13 +276,25 @@ const Index = () => {
                 <li>Simplicity combined with modern technology</li>
               </ul>
             </div>
-            <p className="text-muted-foreground">
-              LEPEN represents my passion for artificial intelligence, software engineering, and innovation. It is designed to grow over time, adapt to real-world needs, and remain accessible to users of all levels.
-            </p>
+            
             <div className="border-t border-primary/20 pt-4">
               <p className="font-medium text-primary">Vision:</p>
               <p className="italic text-muted-foreground">
                 "To build an AI that turns ideas into understanding—where knowledge meets clarity."
+              </p>
+            </div>
+            
+            <div className="border-t border-primary/20 pt-4 text-xs text-muted-foreground">
+              <p>
+                Created by{" "}
+                <a 
+                  href="https://arkadas.netlify.app" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  ARKA DAS
+                </a>
               </p>
             </div>
           </div>

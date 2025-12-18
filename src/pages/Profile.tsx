@@ -25,7 +25,10 @@ const Profile = () => {
   
   // Preferences
   const [emailNotifications, setEmailNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem("lepen_theme");
+    return saved !== "light";
+  });
   const [autoSave, setAutoSave] = useState(true);
 
   useEffect(() => {
@@ -33,6 +36,19 @@ const Profile = () => {
       navigate("/auth");
     }
   }, [user, authLoading, navigate]);
+
+  // Apply theme changes immediately
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.remove("light");
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("lepen_theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      document.documentElement.classList.add("light");
+      localStorage.setItem("lepen_theme", "light");
+    }
+  }, [darkMode]);
 
   useEffect(() => {
     const fetchProfile = async () => {

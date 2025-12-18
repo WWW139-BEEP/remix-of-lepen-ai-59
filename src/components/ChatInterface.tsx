@@ -172,10 +172,28 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
       }
 
       const fileInfo = getFileTypeInfo(file.name, file.type);
+      
+      // In image mode, only allow jpg/jpeg/png/svg
+      if (mode === "images") {
+        const ext = file.name.toLowerCase().split('.').pop() || '';
+        const allowedImageExts = ['jpg', 'jpeg', 'png', 'svg'];
+        if (!allowedImageExts.includes(ext)) {
+          toast({
+            title: "Unsupported file type",
+            description: "In Image mode, only JPG, JPEG, PNG, and SVG files are allowed",
+            variant: "destructive",
+          });
+          continue;
+        }
+      }
+      
       const reader = new FileReader();
       
       reader.onload = (event) => {
         const result = event.target?.result as string;
+        
+        // Get file extension for non-image files
+        const ext = file.name.toLowerCase().split('.').pop() || '';
         
         const newFile: UploadedFile = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -183,7 +201,7 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
           type: fileInfo.type,
           category: fileInfo.category,
           content: result,
-          preview: fileInfo.type === 'image' ? result : undefined,
+          preview: fileInfo.type === 'image' && fileInfo.canRead ? result : undefined,
           canRead: fileInfo.canRead,
         };
         
@@ -605,33 +623,43 @@ export const ChatInterface = ({ mode, conversationId, initialMessages = [], onSa
         ))}
       </div>
 
-      {/* File Memory Panel */}
+      {/* File Preview Panel - Shows above input */}
       {uploadedFiles.length > 0 && (
-        <div className="p-3 border-b border-primary/20 bg-muted/30">
-          <div className="flex items-center justify-between mb-2">
+        <div className="px-4 py-3 border-t border-primary/20 bg-muted/30">
+          <div className="flex items-center gap-2 mb-2">
+            <Upload className="w-4 h-4 text-primary" />
             <span className="text-sm text-foreground/80 font-body">
-              Attached ({uploadedFiles.length})
+              Attached Files ({uploadedFiles.length})
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {uploadedFiles.map((file) => (
-              <div
-                key={file.id}
-                className="flex items-center gap-2 bg-primary/20 px-3 py-1.5 rounded-full text-sm text-foreground"
-              >
-                {file.preview && (
-                  <img src={file.preview} alt="" className="w-5 h-5 rounded object-cover" />
-                )}
-                <span className="truncate max-w-[100px]">{file.name}</span>
-                <span className="text-xs text-muted-foreground">({file.category})</span>
-                <button 
-                  onClick={() => removeFile(file.id)}
-                  className="hover:text-destructive transition-colors"
+            {uploadedFiles.map((file) => {
+              const ext = file.name.split('.').pop()?.toUpperCase() || 'FILE';
+              return (
+                <div
+                  key={file.id}
+                  className="flex items-center gap-2 bg-card/80 border border-primary/20 px-3 py-2 rounded-lg text-sm"
                 >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
+                  {file.preview ? (
+                    <img src={file.preview} alt="" className="w-10 h-10 rounded object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+                      {ext}
+                    </div>
+                  )}
+                  <div className="flex flex-col">
+                    <span className="truncate max-w-[100px] text-foreground">{file.name}</span>
+                    <span className="text-xs text-muted-foreground">{file.category}</span>
+                  </div>
+                  <button 
+                    onClick={() => removeFile(file.id)}
+                    className="ml-1 p-1 hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

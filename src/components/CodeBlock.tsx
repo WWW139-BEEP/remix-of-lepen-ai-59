@@ -93,11 +93,23 @@ export const CodeBlock = ({ code, language = "plaintext" }: CodeBlockProps) => {
 
   return (
     <div className="rounded-lg overflow-hidden border border-primary/30 my-2">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-muted/80 border-b border-primary/20">
-        <span className="text-xs font-mono text-muted-foreground uppercase">
-          {language}
-        </span>
+      {/* Header with language name and download button on same row for mobile */}
+      <div className="flex items-center justify-between px-3 md:px-4 py-2 bg-muted/80 border-b border-primary/20">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-mono text-muted-foreground uppercase">
+            {language}
+          </span>
+          {/* Download button visible on mobile next to language name */}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleDownload}
+            className="h-6 w-6 p-0 md:hidden"
+            title="Download"
+          >
+            <Download className="w-3 h-3" />
+          </Button>
+        </div>
         <div className="flex items-center gap-1">
           {isEditing ? (
             <>
@@ -108,7 +120,7 @@ export const CodeBlock = ({ code, language = "plaintext" }: CodeBlockProps) => {
                 className="h-7 px-2 text-xs text-accent"
               >
                 <Save className="w-3 h-3 mr-1" />
-                Save
+                <span className="hidden sm:inline">Save</span>
               </Button>
               <Button
                 size="sm"
@@ -117,7 +129,7 @@ export const CodeBlock = ({ code, language = "plaintext" }: CodeBlockProps) => {
                 className="h-7 px-2 text-xs text-destructive"
               >
                 <X className="w-3 h-3 mr-1" />
-                Cancel
+                <span className="hidden sm:inline">Cancel</span>
               </Button>
             </>
           ) : (
@@ -129,7 +141,7 @@ export const CodeBlock = ({ code, language = "plaintext" }: CodeBlockProps) => {
                 className="h-7 px-2 text-xs"
               >
                 <Edit3 className="w-3 h-3 mr-1" />
-                Edit
+                <span className="hidden sm:inline">Edit</span>
               </Button>
               {isHtml && (
                 <Button
@@ -139,7 +151,7 @@ export const CodeBlock = ({ code, language = "plaintext" }: CodeBlockProps) => {
                   className={cn("h-7 px-2 text-xs", showPreview && "bg-primary/20")}
                 >
                   <Play className="w-3 h-3 mr-1" />
-                  {showPreview ? "Hide" : "Run"}
+                  <span className="hidden sm:inline">{showPreview ? "Hide" : "Run"}</span>
                 </Button>
               )}
               <Button
@@ -149,13 +161,14 @@ export const CodeBlock = ({ code, language = "plaintext" }: CodeBlockProps) => {
                 className="h-7 px-2 text-xs"
               >
                 {copied ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
-                {copied ? "Copied" : "Copy"}
+                <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
               </Button>
+              {/* Desktop download button */}
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={handleDownload}
-                className="h-7 px-2 text-xs"
+                className="h-7 px-2 text-xs hidden md:flex"
               >
                 <Download className="w-3 h-3 mr-1" />
                 Download
