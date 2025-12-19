@@ -2,12 +2,10 @@
  * Optional Node.js Backend for Lepen AI
  * Deploy to Render or similar platform.
  * 
- * Features:
- * - Gemini 3 Pro Preview for chat/build modes
- * - Gemini 2.5 Flash Image for image generation & editing
- * - Image editing from uploaded images
- * - Cold start handling with keep-alive
- * - Streaming support for faster responses
+ * Models:
+ * - Chat: Gemini Flash 3 Preview (gemini-3.0-flash-preview)
+ * - Build: Gemini Pro 3 Preview (gemini-3.0-pro-preview)
+ * - Image: Gemini 2.5 Flash Image (gemini-2.0-flash-exp-image-generation)
  * 
  * Environment:
  * - GOOGLE_API_KEY: Your Google AI API key
@@ -27,11 +25,17 @@ app.use(express.json({ limit: '50mb' }));
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || '';
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-// Cold start timestamp
+// Model configuration
+const MODELS = {
+  chat: 'gemini-3.0-flash-preview',      // Gemini Flash 3 Preview for chat
+  build: 'gemini-3.0-pro-preview',        // Gemini Pro 3 Preview for build
+  image: 'gemini-2.0-flash-exp-image-generation'  // Gemini 2.5 Flash Image
+};
+
+// Cold start handling
 let lastRequestTime = Date.now();
 const COLD_START_THRESHOLD = 10 * 60 * 1000; // 10 minutes
 
-// Warm up function
 const warmUp = () => {
   lastRequestTime = Date.now();
 };
@@ -39,11 +43,10 @@ const warmUp = () => {
 // Health check endpoint
 app.get('/health', (req, res) => {
   warmUp();
-  const uptime = Math.floor((Date.now() - lastRequestTime) / 1000);
   res.json({ 
     status: 'ok', 
     service: 'lepen-ai-backend',
-    uptime_seconds: uptime,
+    models: MODELS,
     ready: true 
   });
 });
@@ -60,7 +63,17 @@ app.get('/api/keepalive', (req, res) => {
   res.json({ alive: true, timestamp: new Date().toISOString() });
 });
 
-// Streaming Chat endpoint - Gemini 3 Pro Preview
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Lepen AI Backend',
+    status: 'running',
+    endpoints: ['/api/chat', '/api/generate-image', '/api/web-search', '/api/map-search'],
+    models: MODELS
+  });
+});
+
+// Streaming Chat endpoint
 app.post('/api/chat', async (req, res) => {
   warmUp();
   
@@ -70,6 +83,9 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     const { messages, mode, imageData } = req.body;
+    
+    // Select model based on mode
+    const model = mode === 'code' ? MODELS.build : MODELS.chat;
 
     // System prompt
     let systemPrompt = `You are Lepen AI, an intelligent assistant. You can help with:
@@ -85,7 +101,7 @@ For math equations, use LaTeX format: $inline$ or $$block$$
 Use **bold**, *italic*, and __underline__ for emphasis.`;
 
     if (mode === 'code') {
-      systemPrompt += '\n\nYou are now in Build mode. Focus on helping with code, programming, and app development. Provide well-structured, clean code with comments.';
+      systemPrompt += '\n\nYou are now in Build mode. Focus on helping with code, programming, and app development. Provide well-structured, clean code with comments. Use the powerful Gemini Pro 3 Preview model for advanced reasoning.';
     }
 
     // Build content parts
@@ -122,7 +138,7 @@ Use **bold**, *italic*, and __underline__ for emphasis.`;
     res.setHeader('Access-Control-Allow-Origin', '*');
 
     const response = await fetch(
-      `${GEMINI_API_URL}/gemini-2.0-flash:streamGenerateContent?key=${GOOGLE_API_KEY}&alt=sse`,
+      `${GEMINI_API_URL}/${model}:streamGenerateContent?key=${GOOGLE_API_KEY}&alt=sse`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -140,7 +156,7 @@ Use **bold**, *italic*, and __underline__ for emphasis.`;
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Gemini API error:', response.status, errorText);
-      res.write(`data: ${JSON.stringify({ error: 'AI API error' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: 'AI API error', details: errorText })}\n\n`);
       return res.end();
     }
 
@@ -210,7 +226,7 @@ app.post('/api/generate-image', async (req, res) => {
             data: base64Match[2]
           }
         });
-        parts.push({ text: `Edit this image: ${prompt}` });
+        parts.push({ text: `Edit this image based on this instruction: ${prompt}` });
       } else {
         parts.push({ text: `Generate an image: ${prompt}` });
       }
@@ -219,7 +235,7 @@ app.post('/api/generate-image', async (req, res) => {
     }
 
     const response = await fetch(
-      `${GEMINI_API_URL}/gemini-2.0-flash-exp-image-generation:generateContent?key=${GOOGLE_API_KEY}`,
+      `${GEMINI_API_URL}/${MODELS.image}:generateContent?key=${GOOGLE_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -235,7 +251,7 @@ app.post('/api/generate-image', async (req, res) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Image generation error:', response.status, errorText);
-      return res.status(500).json({ error: 'Image generation failed' });
+      return res.status(500).json({ error: 'Image generation failed', details: errorText });
     }
 
     const result = await response.json();
@@ -277,7 +293,7 @@ app.post('/api/web-search', async (req, res) => {
     const { query } = req.body;
 
     const response = await fetch(
-      `${GEMINI_API_URL}/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
+      `${GEMINI_API_URL}/${MODELS.chat}:generateContent?key=${GOOGLE_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -338,7 +354,7 @@ app.post('/api/map-search', async (req, res) => {
 Only return valid JSON.`;
 
     const response = await fetch(
-      `${GEMINI_API_URL}/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
+      `${GEMINI_API_URL}/${MODELS.chat}:generateContent?key=${GOOGLE_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -388,7 +404,10 @@ Only return valid JSON.`;
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Lepen AI Backend running on port ${PORT}`);
-  console.log('📡 Models: Gemini 2.0 Flash (chat/build), Gemini 2.0 Flash Image (images)');
+  console.log('📡 Models:');
+  console.log(`   - Chat: ${MODELS.chat}`);
+  console.log(`   - Build: ${MODELS.build}`);
+  console.log(`   - Image: ${MODELS.image}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log('💡 Deploy to Render with: npm start');
   console.log('\n✅ Ready to accept connections!\n');

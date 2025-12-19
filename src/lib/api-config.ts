@@ -1,44 +1,49 @@
 /**
  * API Configuration for Lepen AI
  * 
- * This file manages backend endpoints with automatic fallback support.
- * When the main Supabase backend is unavailable, the app will automatically
- * try fallback backends if configured.
- * 
- * To configure optional backends:
- * 1. Deploy optional.py or optional.js to your hosting (Render, Railway, Heroku, etc.)
- * 2. Set the FALLBACK_API_URL in your environment or localStorage
+ * This file manages backend endpoints for the optional.js backend.
+ * Configure your Render backend URL here or via localStorage.
  */
 
-// Default configuration
+// Default configuration - set your Render backend URL here
 const config = {
-  // Main backend (Supabase)
-  mainApiUrl: import.meta.env.VITE_SUPABASE_URL,
-  mainApiKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  // Backend URL - set this to your Render deployment URL
+  backendUrl: localStorage.getItem('lepen_backend_url') || '',
   
-  // Fallback backends (set via localStorage or environment)
+  // Fallback backends (set via localStorage)
   fallbackUrls: [] as string[],
   
   // Timeout before trying fallback (ms)
-  fallbackTimeout: 15000,
+  fallbackTimeout: 30000,
   
   // Max retries
   maxRetries: 2,
 };
 
-// Load fallback URLs from localStorage
-export function loadFallbackConfig(): void {
+// Load backend URL from localStorage
+export function loadBackendConfig(): void {
   try {
-    const stored = localStorage.getItem('lepen_fallback_backends');
+    const stored = localStorage.getItem('lepen_backend_url');
     if (stored) {
-      const parsed = JSON.parse(stored);
+      config.backendUrl = stored;
+    }
+    
+    const fallbacks = localStorage.getItem('lepen_fallback_backends');
+    if (fallbacks) {
+      const parsed = JSON.parse(fallbacks);
       if (Array.isArray(parsed)) {
         config.fallbackUrls = parsed.filter(url => typeof url === 'string' && url.trim());
       }
     }
   } catch (e) {
-    console.warn('Could not load fallback config:', e);
+    console.warn('Could not load backend config:', e);
   }
+}
+
+// Save backend URL to localStorage
+export function saveBackendUrl(url: string): void {
+  config.backendUrl = url.trim();
+  localStorage.setItem('lepen_backend_url', config.backendUrl);
 }
 
 // Save fallback URLs to localStorage
@@ -47,9 +52,14 @@ export function saveFallbackConfig(urls: string[]): void {
   localStorage.setItem('lepen_fallback_backends', JSON.stringify(config.fallbackUrls));
 }
 
+// Get current backend URL
+export function getBackendUrl(): string {
+  return config.backendUrl;
+}
+
 // Get current fallback URLs
 export function getFallbackUrls(): string[] {
-  return config.fallbackUrls;
+  return [config.backendUrl, ...config.fallbackUrls].filter(url => url.trim());
 }
 
 // Check if a backend is healthy
@@ -69,30 +79,20 @@ export async function checkBackendHealth(url: string): Promise<boolean> {
   }
 }
 
-// Make API request with automatic fallback
-export async function fetchWithFallback(
+// Make API request to the backend
+export async function fetchFromBackend(
   endpoint: string,
-  options: RequestInit,
-  useMainEndpoint: boolean = true
+  options: RequestInit
 ): Promise<Response> {
-  const urls: string[] = [];
+  const urls = getFallbackUrls();
   
-  // Add main backend
-  if (useMainEndpoint && config.mainApiUrl) {
-    urls.push(`${config.mainApiUrl}/functions/v1/${endpoint}`);
-  }
-  
-  // Add fallback backends
-  for (const fallbackUrl of config.fallbackUrls) {
-    urls.push(`${fallbackUrl}/api/${endpoint}`);
+  if (urls.length === 0) {
+    throw new Error('No backend configured. Please set your Render backend URL in Settings.');
   }
   
   let lastError: Error | null = null;
   
-  for (let i = 0; i < urls.length; i++) {
-    const url = urls[i];
-    const isMain = i === 0 && useMainEndpoint;
-    
+  for (const baseUrl of urls) {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(
@@ -100,53 +100,34 @@ export async function fetchWithFallback(
         config.fallbackTimeout
       );
       
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(options.headers as Record<string, string>),
-      };
-      
-      // Add auth header for main backend
-      if (isMain && config.mainApiKey) {
-        headers['Authorization'] = `Bearer ${config.mainApiKey}`;
-      }
-      
-      const response = await fetch(url, {
+      const response = await fetch(`${baseUrl}/api/${endpoint}`, {
         ...options,
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers as Record<string, string>),
+        },
         signal: controller.signal,
       });
       
       clearTimeout(timeoutId);
       
-      if (response.ok) {
-        // Log which backend was used (useful for debugging)
-        if (!isMain) {
-          console.log(`Using fallback backend: ${url}`);
-        }
+      if (response.ok || response.status < 500) {
         return response;
       }
       
-      // If rate limited or server error, try next backend
-      if (response.status === 429 || response.status >= 500) {
-        lastError = new Error(`Backend ${url} returned ${response.status}`);
-        continue;
-      }
-      
-      // For other errors (4xx), return the response
-      return response;
+      lastError = new Error(`Backend ${baseUrl} returned ${response.status}`);
       
     } catch (error) {
       lastError = error as Error;
-      console.warn(`Backend ${url} failed:`, error);
+      console.warn(`Backend ${baseUrl} failed:`, error);
       continue;
     }
   }
   
-  // All backends failed
   throw lastError || new Error('All backends unavailable');
 }
 
 // Initialize on load
-loadFallbackConfig();
+loadBackendConfig();
 
 export default config;

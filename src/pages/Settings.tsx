@@ -3,16 +3,22 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Palette, Download, Shield, Settings as SettingsIcon, Sun, Moon, Save, Bell, Zap } from "lucide-react";
+import { ArrowLeft, Palette, Download, Shield, Server, Sun, Moon, Save, Bell, Zap, CheckCircle, XCircle } from "lucide-react";
 import { LepanLogo } from "@/components/LepanLogo";
 import { SparkleBackground } from "@/components/SparkleEffect";
+import { saveBackendUrl, getBackendUrl, checkBackendHealth } from "@/lib/api-config";
 
 const Settings = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // Backend configuration
+  const [backendUrl, setBackendUrlState] = useState(() => getBackendUrl());
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline' | 'unknown'>('unknown');
   
   // Preferences
   const [darkMode, setDarkMode] = useState(() => {
@@ -28,6 +34,18 @@ const Settings = () => {
     return saved ? JSON.parse(saved).animations ?? true : true;
   });
 
+  // Check backend health on mount and when URL changes
+  useEffect(() => {
+    if (backendUrl) {
+      setBackendStatus('checking');
+      checkBackendHealth(backendUrl).then(healthy => {
+        setBackendStatus(healthy ? 'online' : 'offline');
+      });
+    } else {
+      setBackendStatus('unknown');
+    }
+  }, [backendUrl]);
+
   // Apply theme changes immediately
   useEffect(() => {
     if (darkMode) {
@@ -40,6 +58,22 @@ const Settings = () => {
       localStorage.setItem("lepen_theme", "light");
     }
   }, [darkMode]);
+
+  const handleSaveBackend = () => {
+    saveBackendUrl(backendUrl);
+    toast({
+      title: "Backend saved",
+      description: "Your Render backend URL has been saved.",
+    });
+    
+    // Re-check health
+    if (backendUrl) {
+      setBackendStatus('checking');
+      checkBackendHealth(backendUrl).then(healthy => {
+        setBackendStatus(healthy ? 'online' : 'offline');
+      });
+    }
+  };
 
   const handleSavePreferences = () => {
     localStorage.setItem("lepen_preferences", JSON.stringify({
@@ -55,7 +89,6 @@ const Settings = () => {
   };
 
   const handleDownloadChat = () => {
-    // Get all chat data from sessionStorage
     const chatData = sessionStorage.getItem("lepen_current_chat");
     
     if (!chatData) {
@@ -139,6 +172,55 @@ const Settings = () => {
             <h1 className="font-display text-2xl text-foreground">Settings</h1>
           </div>
         </div>
+
+        {/* Backend Configuration Card */}
+        <Card className="glass-strong border-primary/20 mb-6">
+          <CardHeader>
+            <CardTitle className="font-display text-lg text-foreground flex items-center gap-2">
+              <Server className="w-5 h-5 text-primary" />
+              Backend Configuration
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-foreground">Render Backend URL</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={backendUrl}
+                  onChange={(e) => setBackendUrlState(e.target.value)}
+                  placeholder="https://your-app.onrender.com"
+                  className="bg-muted/50 border-primary/30 text-foreground"
+                />
+                <Button onClick={handleSaveBackend} className="bg-primary hover:bg-primary/90">
+                  <Save className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Enter your Render deployment URL where optional.js is running
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Status:</span>
+              {backendStatus === 'checking' && (
+                <span className="text-yellow-500">Checking...</span>
+              )}
+              {backendStatus === 'online' && (
+                <span className="text-green-500 flex items-center gap-1">
+                  <CheckCircle className="w-4 h-4" /> Online
+                </span>
+              )}
+              {backendStatus === 'offline' && (
+                <span className="text-red-500 flex items-center gap-1">
+                  <XCircle className="w-4 h-4" /> Offline
+                </span>
+              )}
+              {backendStatus === 'unknown' && (
+                <span className="text-muted-foreground">Not configured</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Preferences Card */}
         <Card className="glass-strong border-primary/20 mb-6">
