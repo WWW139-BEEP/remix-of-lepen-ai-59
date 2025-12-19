@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, Paperclip, X, MessageSquare, Image, Hammer, Download, Square, Menu, Settings, Home } from "lucide-react";
+import { Send, Loader2, Paperclip, X, MessageSquare, Image, Hammer, Download, Square, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -8,13 +8,6 @@ import { MessageContent } from "./MessageContent";
 import { MapView } from "./MapView";
 import { useToast } from "@/hooks/use-toast";
 import { getFallbackUrls } from "@/lib/api-config";
-import { useNavigate } from "react-router-dom";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 interface UploadedFile {
   id: string;
@@ -97,11 +90,85 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [mapData, setMapData] = useState<MapData | null>(null);
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const { toast } = useToast();
-  const navigate = useNavigate();
+
+  // Initialize speech recognition
+  useEffect(() => {
+    const SpeechRecognitionAPI = (window as Window).SpeechRecognition || (window as Window).webkitSpeechRecognition;
+    
+    if (SpeechRecognitionAPI) {
+      recognitionRef.current = new SpeechRecognitionAPI();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        
+        if (finalTranscript) {
+          setInput(prev => prev + finalTranscript);
+        }
+      };
+
+      recognitionRef.current.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        toast({
+          title: "Voice input error",
+          description: event.error === 'not-allowed' ? 'Microphone access denied' : 'Could not recognize speech',
+          variant: "destructive"
+        });
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, [toast]);
+
+  const toggleVoiceInput = useCallback(() => {
+    if (!recognitionRef.current) {
+      toast({
+        title: "Not supported",
+        description: "Voice input is not supported in your browser",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      recognitionRef.current.start();
+      setIsListening(true);
+      toast({
+        title: "Listening...",
+        description: "Speak now. Click again to stop.",
+      });
+    }
+  }, [isListening, toast]);
 
   // Cold-start prevention - ping backend every 5 minutes
   useEffect(() => {
@@ -375,35 +442,15 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
 
   return (
     <div className="glass-strong rounded-2xl h-[calc(100vh-120px)] min-h-[600px] flex flex-col overflow-hidden relative" style={{ zIndex: 10 }}>
-      {/* Header with Menu and Mode Selector */}
-      <div className="px-4 py-3 border-b border-primary/20 flex items-center gap-3">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="text-foreground hover:bg-primary/20 flex-shrink-0">
-              <Menu className="w-5 h-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48">
-            {onBack && (
-              <DropdownMenuItem onClick={onBack} className="cursor-pointer">
-                <Home className="w-4 h-4 mr-2" />
-                Home
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
-              <Settings className="w-4 h-4 mr-2" />
-              Settings
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        
-        <div className="flex gap-2 flex-1 justify-center">
+      {/* Header with Mode Selector */}
+      <div className="px-4 py-3 border-b border-primary/20 flex items-center justify-center">
+        <div className="flex gap-3">
           {modes.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => onModeChange?.(id)}
               className={cn(
-                "flex items-center gap-2 px-4 py-2.5 rounded-lg font-sans text-sm transition-all duration-200 flex-shrink-0",
+                "flex items-center gap-2 px-5 py-2.5 rounded-lg font-sans text-sm transition-all duration-200",
                 mode === id
                   ? "bg-primary text-primary-foreground shadow-gold"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -504,12 +551,23 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
           <Button onClick={() => fileInputRef.current?.click()} className="h-[50px] px-3 bg-primary/80 hover:bg-primary">
             <Paperclip className="w-5 h-5" />
           </Button>
+          <Button 
+            onClick={toggleVoiceInput} 
+            className={cn(
+              "h-[50px] px-3 transition-all",
+              isListening 
+                ? "bg-destructive hover:bg-destructive/90 animate-pulse" 
+                : "bg-primary/80 hover:bg-primary"
+            )}
+          >
+            {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          </Button>
           <div className="flex-1">
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Lepen AI anything..."
+              placeholder={isListening ? "Listening... speak now" : "Ask Lepen AI anything..."}
               className="min-h-[50px] max-h-[150px] resize-none bg-muted/50 border-primary/30 text-foreground"
               rows={2}
             />
