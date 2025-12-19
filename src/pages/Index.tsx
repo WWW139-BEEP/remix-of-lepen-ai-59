@@ -1,15 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Image, Hammer, Sparkles, Menu, Info } from "lucide-react";
+import { MessageSquare, Image, Hammer, Sparkles, Settings, Info } from "lucide-react";
 import { LepanLogo } from "@/components/LepanLogo";
 import { SparkleBackground } from "@/components/SparkleEffect";
 import { FeatureCard } from "@/components/FeatureCard";
 import { ChatInterface } from "@/components/ChatInterface";
-import { ConversationSidebar } from "@/components/ConversationSidebar";
-import { useAuth } from "@/hooks/useAuth";
-import { useConversations, Message } from "@/hooks/useConversations";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -40,195 +36,30 @@ const features = [
 
 const Index = () => {
   const [activeMode, setActiveMode] = useState<string>("chat");
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
-  const [showLanding, setShowLanding] = useState(false);
-  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const {
-    conversations,
-    loading: convLoading,
-    createConversation,
-    updateConversationTitle,
-    deleteConversation,
-    getMessages,
-    addMessage,
-  } = useConversations();
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
-  }, [user, authLoading, navigate]);
-
-  // Auto-start chat when user is logged in
-  useEffect(() => {
-    const initChat = async () => {
-      if (user && !convLoading && !activeConversationId) {
-        // Check if there are existing conversations
-        if (conversations.length > 0) {
-          // Load the most recent conversation
-          const recentConv = conversations[0];
-          const msgs = await getMessages(recentConv.id);
-          setConversationMessages(msgs);
-          setActiveConversationId(recentConv.id);
-          setActiveMode(recentConv.mode);
-        } else {
-          // Create a new conversation
-          const conv = await createConversation("chat");
-          if (conv) {
-            setActiveConversationId(conv.id);
-            setActiveMode("chat");
-          }
-        }
-      }
-    };
-    initChat();
-  }, [user, convLoading, conversations.length]);
-
-  const loadConversation = useCallback(async (id: string) => {
-    const msgs = await getMessages(id);
-    setConversationMessages(msgs);
-    setActiveConversationId(id);
-    setShowLanding(false);
-    
-    const conv = conversations.find((c) => c.id === id);
-    if (conv) {
-      setActiveMode(conv.mode);
-    }
-  }, [getMessages, conversations]);
-
-  const handleSelectMode = async (mode: string) => {
+  const handleSelectMode = (mode: string) => {
     setActiveMode(mode);
-    setShowLanding(false);
-    
-    // Only create new conversation if there's no active one or if coming from landing page
-    if (!activeConversationId) {
-      const conv = await createConversation(mode);
-      if (conv) {
-        setActiveConversationId(conv.id);
-        setConversationMessages([]);
-      }
-    }
-  };
-
-  const handleNewConversation = async () => {
-    const mode = activeMode || "chat";
-    const conv = await createConversation(mode);
-    if (conv) {
-      setActiveConversationId(conv.id);
-      setConversationMessages([]);
-      setActiveMode(mode);
-      setShowLanding(false);
-    }
-    setSidebarOpen(false);
-  };
-
-  const handleSaveMessage = async (role: "user" | "assistant", content: string, imageUrl?: string) => {
-    if (!activeConversationId) return;
-    await addMessage(activeConversationId, role, content, imageUrl);
-  };
-
-  const handleDeleteConversation = async (id: string) => {
-    await deleteConversation(id);
-    if (activeConversationId === id) {
-      setActiveConversationId(null);
-      setConversationMessages([]);
-      // Create a new conversation after deleting
-      const conv = await createConversation("chat");
-      if (conv) {
-        setActiveConversationId(conv.id);
-        setActiveMode("chat");
-      }
-    }
-  };
-
-  const handleRenameConversation = async (id: string, title: string) => {
-    await updateConversationTitle(id, title);
-  };
-
-  const handleExportConversation = async (id: string, format: "txt" | "json") => {
-    const msgs = await getMessages(id);
-    const conv = conversations.find((c) => c.id === id);
-    const title = conv?.title || "conversation";
-    
-    if (format === "json") {
-      const data = {
-        title: conv?.title,
-        mode: conv?.mode,
-        created_at: conv?.created_at,
-        messages: msgs.map((m) => ({
-          role: m.role,
-          content: m.content,
-          created_at: m.created_at,
-          image_url: m.image_url,
-        })),
-      };
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${title.replace(/[^a-z0-9]/gi, "_")}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } else {
-      let text = `# ${conv?.title}\n`;
-      text += `Mode: ${conv?.mode}\n`;
-      text += `Created: ${new Date(conv?.created_at || "").toLocaleString()}\n\n`;
-      text += "---\n\n";
-      
-      msgs.forEach((m) => {
-        const role = m.role === "user" ? "You" : "Lepen AI";
-        text += `[${role}] (${new Date(m.created_at).toLocaleString()})\n`;
-        text += `${m.content}\n`;
-        if (m.image_url) {
-          text += `[Image: ${m.image_url}]\n`;
-        }
-        text += "\n---\n\n";
-      });
-      
-      const blob = new Blob([text], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${title.replace(/[^a-z0-9]/gi, "_")}.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
+    setShowChat(true);
   };
 
   const currentYear = new Date().getFullYear();
-
-  if (authLoading || convLoading) {
-    return (
-      <div className="min-h-screen gradient-main flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
 
   return (
     <div className="min-h-screen gradient-main relative overflow-hidden">
       <SparkleBackground />
 
-      <ConversationSidebar
-        conversations={conversations}
-        activeConversationId={activeConversationId}
-        onSelectConversation={loadConversation}
-        onNewConversation={handleNewConversation}
-        onDeleteConversation={handleDeleteConversation}
-        onRenameConversation={handleRenameConversation}
-        onExportConversation={handleExportConversation}
-        onShowHomepage={() => setShowLanding(true)}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-      />
+      {/* Settings Button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => navigate("/settings")}
+        className="fixed top-6 left-6 z-30 bg-card/90 hover:bg-primary/20 text-foreground border border-primary/30"
+      >
+        <Settings className="w-5 h-5" />
+      </Button>
 
       {/* Info Button */}
       <button
@@ -259,11 +90,12 @@ const Index = () => {
               <p className="font-medium text-foreground">Core Capabilities:</p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1 ml-2">
                 <li><strong>AI Chat</strong> - Intelligent conversations with context awareness</li>
-                <li><strong>Image Generation</strong> - Create visuals from text descriptions</li>
+                <li><strong>Image Generation</strong> - Create & edit visuals from text descriptions</li>
                 <li><strong>Code Building</strong> - Write, debug, and explain code</li>
                 <li><strong>Web Search</strong> - Real-time information from the internet</li>
                 <li><strong>Maps & Locations</strong> - Geographic data and directions</li>
                 <li><strong>Weather</strong> - Current conditions and forecasts</li>
+                <li><strong>Math & Equations</strong> - Beautifully formatted mathematical expressions</li>
               </ul>
             </div>
             
@@ -274,6 +106,7 @@ const Index = () => {
                 <li>Clean, scalable system design</li>
                 <li>Ethical and responsible AI behavior</li>
                 <li>Simplicity combined with modern technology</li>
+                <li>No data collection - your privacy matters</li>
               </ul>
             </div>
             
@@ -305,7 +138,7 @@ const Index = () => {
                     fontWeight: 600,
                   }}
                 >
-                  𝒜𝑅𝒦𝒜 𝒟𝒜𝒮
+                  𝒜𝑅𝒦𝒜 𝒟𝒜𝒮  
                 </a>
               </p>
             </div>
@@ -314,16 +147,6 @@ const Index = () => {
       </Dialog>
 
       <div className="container mx-auto px-4 py-8 max-w-4xl relative" style={{ zIndex: 10 }}>
-        {/* Menu Button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSidebarOpen(true)}
-          className="fixed top-6 left-6 z-30 bg-card/90 hover:bg-primary/20 text-foreground border border-primary/30"
-        >
-          <Menu className="w-5 h-5" />
-        </Button>
-
         {/* Header */}
         <header className="text-center mb-6 animate-float">
           <div className="flex flex-col items-center mb-4">
@@ -342,7 +165,7 @@ const Index = () => {
           </div>
         </header>
 
-        {showLanding ? (
+        {!showChat ? (
           <>
             {/* Feature Cards */}
             <section className="mb-8">
@@ -374,14 +197,12 @@ const Index = () => {
             </section>
           </>
         ) : (
-          /* Chat View */
+          /* Chat View - Full Screen */
           <div className="space-y-4">
             <ChatInterface
               mode={activeMode}
-              conversationId={activeConversationId}
-              initialMessages={conversationMessages}
-              onSaveMessage={handleSaveMessage}
-              onModeChange={handleSelectMode}
+              onModeChange={setActiveMode}
+              onBack={() => setShowChat(false)}
             />
           </div>
         )}
