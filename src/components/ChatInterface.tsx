@@ -7,7 +7,7 @@ import { Sparkle } from "./SparkleEffect";
 import { MessageContent } from "./MessageContent";
 import { MapView } from "./MapView";
 import { useToast } from "@/hooks/use-toast";
-import { getFallbackUrls } from "@/lib/api-config";
+import { getBackendUrl } from "@/lib/api-config";
 
 interface UploadedFile {
   id: string;
@@ -77,11 +77,7 @@ function getFileTypeInfo(filename: string, mimeType: string): { type: string; ca
 
 // Get API base URL from config
 function getApiBaseUrl(): string {
-  const fallbacks = getFallbackUrls();
-  if (fallbacks.length > 0) {
-    return fallbacks[0];
-  }
-  return '';
+  return getBackendUrl();
 }
 
 export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps) => {

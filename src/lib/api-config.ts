@@ -1,74 +1,45 @@
 /**
  * API Configuration for Lepen AI
  * 
- * This file manages backend endpoints for the optional.js backend.
- * When deployed together on Render, it auto-detects the backend URL.
+ * This file manages the backend connection URL.
+ * The URL is stored in localStorage and configured programmatically.
  */
 
-// Auto-detect backend URL when deployed on same origin
-function getAutoBackendUrl(): string {
-  // Check localStorage first
-  const stored = localStorage.getItem('lepen_backend_url');
-  if (stored) return stored;
-  
-  // When deployed together on Render, the backend runs on the same origin
-  // So we can use the current origin as the backend URL
-  const currentOrigin = window.location.origin;
-  
-  // If running on localhost (development), don't auto-detect
-  if (currentOrigin.includes('localhost') || currentOrigin.includes('127.0.0.1')) {
+// Get backend URL from localStorage (hidden from UI)
+function getStoredBackendUrl(): string {
+  try {
+    return localStorage.getItem('lepen_backend_url') || '';
+  } catch {
     return '';
   }
-  
-  // For production deployments (Render, etc.), use same origin
-  return currentOrigin;
 }
 
-// Default configuration
+// Configuration
 const config = {
-  // Backend URL - auto-detected or from localStorage
-  backendUrl: getAutoBackendUrl(),
-  
-  // Fallback backends (set via localStorage)
-  fallbackUrls: [] as string[],
-  
-  // Timeout before trying fallback (ms)
+  backendUrl: getStoredBackendUrl(),
   fallbackTimeout: 30000,
-  
-  // Max retries
-  maxRetries: 2,
 };
 
-// Load backend URL from localStorage
+// Load backend config on initialization
 export function loadBackendConfig(): void {
   try {
     const stored = localStorage.getItem('lepen_backend_url');
     if (stored) {
       config.backendUrl = stored;
     }
-    
-    const fallbacks = localStorage.getItem('lepen_fallback_backends');
-    if (fallbacks) {
-      const parsed = JSON.parse(fallbacks);
-      if (Array.isArray(parsed)) {
-        config.fallbackUrls = parsed.filter(url => typeof url === 'string' && url.trim());
-      }
-    }
   } catch (e) {
     console.warn('Could not load backend config:', e);
   }
 }
 
-// Save backend URL to localStorage
+// Save backend URL (called programmatically, not from UI)
 export function saveBackendUrl(url: string): void {
   config.backendUrl = url.trim();
-  localStorage.setItem('lepen_backend_url', config.backendUrl);
-}
-
-// Save fallback URLs to localStorage
-export function saveFallbackConfig(urls: string[]): void {
-  config.fallbackUrls = urls.filter(url => url.trim());
-  localStorage.setItem('lepen_fallback_backends', JSON.stringify(config.fallbackUrls));
+  try {
+    localStorage.setItem('lepen_backend_url', config.backendUrl);
+  } catch (e) {
+    console.warn('Could not save backend URL:', e);
+  }
 }
 
 // Get current backend URL
@@ -76,9 +47,9 @@ export function getBackendUrl(): string {
   return config.backendUrl;
 }
 
-// Get current fallback URLs
-export function getFallbackUrls(): string[] {
-  return [config.backendUrl, ...config.fallbackUrls].filter(url => url.trim());
+// Check if backend is configured
+export function isBackendConfigured(): boolean {
+  return config.backendUrl.length > 0;
 }
 
 // Check if a backend is healthy
@@ -103,47 +74,35 @@ export async function fetchFromBackend(
   endpoint: string,
   options: RequestInit
 ): Promise<Response> {
-  const urls = getFallbackUrls();
+  const baseUrl = config.backendUrl;
   
-  if (urls.length === 0) {
-    throw new Error('No backend configured. Please set your Render backend URL in Settings.');
+  if (!baseUrl) {
+    throw new Error('Backend not configured. Please contact the administrator.');
   }
   
-  let lastError: Error | null = null;
-  
-  for (const baseUrl of urls) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        config.fallbackTimeout
-      );
-      
-      const response = await fetch(`${baseUrl}/api/${endpoint}`, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(options.headers as Record<string, string>),
-        },
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (response.ok || response.status < 500) {
-        return response;
-      }
-      
-      lastError = new Error(`Backend ${baseUrl} returned ${response.status}`);
-      
-    } catch (error) {
-      lastError = error as Error;
-      console.warn(`Backend ${baseUrl} failed:`, error);
-      continue;
-    }
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      config.fallbackTimeout
+    );
+    
+    const response = await fetch(`${baseUrl}/api/${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers as Record<string, string>),
+      },
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    return response;
+    
+  } catch (error) {
+    console.error(`Backend request failed:`, error);
+    throw error;
   }
-  
-  throw lastError || new Error('All backends unavailable');
 }
 
 // Initialize on load
