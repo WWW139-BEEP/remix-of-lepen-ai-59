@@ -2,13 +2,32 @@
  * API Configuration for Lepen AI
  * 
  * This file manages backend endpoints for the optional.js backend.
- * Configure your Render backend URL here or via localStorage.
+ * When deployed together on Render, it auto-detects the backend URL.
  */
 
-// Default configuration - set your Render backend URL here
+// Auto-detect backend URL when deployed on same origin
+function getAutoBackendUrl(): string {
+  // Check localStorage first
+  const stored = localStorage.getItem('lepen_backend_url');
+  if (stored) return stored;
+  
+  // When deployed together on Render, the backend runs on the same origin
+  // So we can use the current origin as the backend URL
+  const currentOrigin = window.location.origin;
+  
+  // If running on localhost (development), don't auto-detect
+  if (currentOrigin.includes('localhost') || currentOrigin.includes('127.0.0.1')) {
+    return '';
+  }
+  
+  // For production deployments (Render, etc.), use same origin
+  return currentOrigin;
+}
+
+// Default configuration
 const config = {
-  // Backend URL - set this to your Render deployment URL
-  backendUrl: localStorage.getItem('lepen_backend_url') || '',
+  // Backend URL - auto-detected or from localStorage
+  backendUrl: getAutoBackendUrl(),
   
   // Fallback backends (set via localStorage)
   fallbackUrls: [] as string[],
