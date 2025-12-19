@@ -69,6 +69,10 @@ const Index = () => {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-48">
+          <DropdownMenuItem onClick={() => setShowChat(false)} className="cursor-pointer">
+            <Home className="w-4 h-4 mr-2" />
+            Home
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
             <Settings className="w-4 h-4 mr-2" />
             Settings
@@ -153,7 +157,7 @@ const Index = () => {
                     fontWeight: 600,
                   }}
                 >
-                  𝒜𝑅𝒦𝒜 𝒟𝒜𝒮  
+                  {" "}𝒜𝑅𝒦𝒜 𝒟𝒜𝒮{" "}
                 </a>
               </p>
             </div>

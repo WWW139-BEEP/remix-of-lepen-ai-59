@@ -103,25 +103,16 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
     
     if (SpeechRecognitionAPI) {
       recognitionRef.current = new SpeechRecognitionAPI();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
+      recognitionRef.current.continuous = false; // Changed to false to prevent doubling
+      recognitionRef.current.interimResults = false; // Changed to false to prevent doubling
       recognitionRef.current.lang = 'en-US';
 
       recognitionRef.current.onresult = (event) => {
-        let finalTranscript = '';
-        let interimTranscript = '';
-        
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-        
-        if (finalTranscript) {
-          setInput(prev => prev + finalTranscript);
+        // Get only the final result to prevent doubling
+        const result = event.results[event.results.length - 1];
+        if (result.isFinal) {
+          const transcript = result[0].transcript;
+          setInput(prev => prev + transcript + ' ');
         }
       };
 
