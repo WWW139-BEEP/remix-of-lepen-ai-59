@@ -24,11 +24,11 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Separate API keys for each mode
+// Separate API keys for each mode - defaults provided, override in environment
 const API_KEYS = {
-  chat: process.env.GOOGLE_CHAT_API_KEY || '',
-  build: process.env.GOOGLE_BUILD_API_KEY || '',
-  image: process.env.GOOGLE_IMAGE_API_KEY || ''
+  chat: process.env.GOOGLE_CHAT_API_KEY || 'AIzaSyDYUvKueZMcyrYk3sBUABSbIYertbVzdFA',
+  build: process.env.GOOGLE_BUILD_API_KEY || 'AIzaSyBSmxfneb6mgC19HHi7NFwF_Dg9kZwSH2A',
+  image: process.env.GOOGLE_IMAGE_API_KEY || 'AIzaSyAR5S-O2tZIftyjBRJunRDY-lPj48qxH-Y'
 };
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';

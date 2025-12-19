@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, Paperclip, X, MessageSquare, Image, Hammer, Download, Square, Menu } from "lucide-react";
+import { Send, Loader2, Paperclip, X, MessageSquare, Image, Hammer, Download, Square, Menu, Settings, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,13 @@ import { MessageContent } from "./MessageContent";
 import { MapView } from "./MapView";
 import { useToast } from "@/hooks/use-toast";
 import { getFallbackUrls } from "@/lib/api-config";
+import { useNavigate } from "react-router-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface UploadedFile {
   id: string;
@@ -94,6 +101,29 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  // Cold-start prevention - ping backend every 5 minutes
+  useEffect(() => {
+    const baseUrl = getApiBaseUrl();
+    if (!baseUrl) return;
+
+    const pingBackend = async () => {
+      try {
+        await fetch(`${baseUrl}/api/health`, { method: 'GET' });
+      } catch {
+        // Silently fail - just keeping it warm
+      }
+    };
+
+    // Initial ping
+    pingBackend();
+
+    // Ping every 5 minutes (300000ms)
+    const interval = setInterval(pingBackend, 300000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Save to session storage for download
   useEffect(() => {
@@ -345,13 +375,28 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
 
   return (
     <div className="glass-strong rounded-2xl h-[calc(100vh-120px)] min-h-[600px] flex flex-col overflow-hidden relative" style={{ zIndex: 10 }}>
-      {/* Header with Mode Selector */}
+      {/* Header with Menu and Mode Selector */}
       <div className="px-4 py-3 border-b border-primary/20 flex items-center gap-3">
-        {onBack && (
-          <Button variant="ghost" size="icon" onClick={onBack} className="text-foreground hover:bg-primary/20 flex-shrink-0">
-            <Menu className="w-5 h-5" />
-          </Button>
-        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="text-foreground hover:bg-primary/20 flex-shrink-0">
+              <Menu className="w-5 h-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48">
+            {onBack && (
+              <DropdownMenuItem onClick={onBack} className="cursor-pointer">
+                <Home className="w-4 h-4 mr-2" />
+                Home
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
+              <Settings className="w-4 h-4 mr-2" />
+              Settings
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        
         <div className="flex gap-2 flex-1 justify-center">
           {modes.map(({ id, label, icon: Icon }) => (
             <button
@@ -365,7 +410,7 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
               )}
             >
               <Icon className="w-4 h-4" />
-              <span className="hidden sm:inline">{label}</span>
+              <span>{label}</span>
             </button>
           ))}
         </div>

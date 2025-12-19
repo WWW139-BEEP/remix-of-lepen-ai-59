@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Image, Hammer, Sparkles, Settings, Info } from "lucide-react";
+import { MessageSquare, Image, Hammer, Sparkles, Info, Menu, Settings, Home } from "lucide-react";
 import { LepanLogo } from "@/components/LepanLogo";
 import { SparkleBackground } from "@/components/SparkleEffect";
 import { FeatureCard } from "@/components/FeatureCard";
@@ -12,6 +12,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const features = [
   {
@@ -51,15 +57,24 @@ const Index = () => {
     <div className="min-h-screen gradient-main relative overflow-hidden">
       <SparkleBackground />
 
-      {/* Settings Button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => navigate("/settings")}
-        className="fixed top-6 left-6 z-30 bg-card/90 hover:bg-primary/20 text-foreground border border-primary/30"
-      >
-        <Settings className="w-5 h-5" />
-      </Button>
+      {/* Menu Button */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="fixed top-6 left-6 z-30 bg-card/90 hover:bg-primary/20 text-foreground border border-primary/30"
+          >
+            <Menu className="w-5 h-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-48">
+          <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
+            <Settings className="w-4 h-4 mr-2" />
+            Settings
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {/* Info Button */}
       <button
