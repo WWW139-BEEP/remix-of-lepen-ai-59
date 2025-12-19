@@ -7,8 +7,10 @@
  * - Build: Gemini Pro 3 Preview (gemini-3.0-pro-preview)
  * - Image: Gemini 2.5 Flash Image (gemini-2.0-flash-exp-image-generation)
  * 
- * Environment:
- * - GOOGLE_API_KEY: Your Google AI API key
+ * Environment Variables (set in Render dashboard):
+ * - GOOGLE_CHAT_API_KEY: API key for Chat mode
+ * - GOOGLE_BUILD_API_KEY: API key for Build mode
+ * - GOOGLE_IMAGE_API_KEY: API key for Image mode
  * - PORT: Server port (default 3001)
  * 
  * npm install express cors
@@ -22,14 +24,20 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || '';
+// Separate API keys for each mode
+const API_KEYS = {
+  chat: process.env.GOOGLE_CHAT_API_KEY || '',
+  build: process.env.GOOGLE_BUILD_API_KEY || '',
+  image: process.env.GOOGLE_IMAGE_API_KEY || ''
+};
+
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // Model configuration
 const MODELS = {
-  chat: 'gemini-3.0-flash-preview',      // Gemini Flash 3 Preview for chat
-  build: 'gemini-3.0-pro-preview',        // Gemini Pro 3 Preview for build
-  image: 'gemini-2.0-flash-exp-image-generation'  // Gemini 2.5 Flash Image
+  chat: 'gemini-3.0-flash-preview',
+  build: 'gemini-3.0-pro-preview',
+  image: 'gemini-2.0-flash-exp-image-generation'
 };
 
 // Cold start handling
@@ -76,16 +84,18 @@ app.get('/', (req, res) => {
 // Streaming Chat endpoint
 app.post('/api/chat', async (req, res) => {
   warmUp();
-  
-  if (!GOOGLE_API_KEY) {
-    return res.status(500).json({ error: 'GOOGLE_API_KEY not configured' });
-  }
 
   try {
     const { messages, mode, imageData } = req.body;
     
-    // Select model based on mode
-    const model = mode === 'code' ? MODELS.build : MODELS.chat;
+    // Select model and API key based on mode
+    const isCodeMode = mode === 'code';
+    const model = isCodeMode ? MODELS.build : MODELS.chat;
+    const apiKey = isCodeMode ? API_KEYS.build : API_KEYS.chat;
+    
+    if (!apiKey) {
+      return res.status(500).json({ error: `API key not configured for ${isCodeMode ? 'Build' : 'Chat'} mode` });
+    }
 
     // System prompt
     let systemPrompt = `You are Lepen AI, an intelligent assistant. You can help with:
@@ -138,7 +148,7 @@ Use **bold**, *italic*, and __underline__ for emphasis.`;
     res.setHeader('Access-Control-Allow-Origin', '*');
 
     const response = await fetch(
-      `${GEMINI_API_URL}/${model}:streamGenerateContent?key=${GOOGLE_API_KEY}&alt=sse`,
+      `${GEMINI_API_URL}/${model}:streamGenerateContent?key=${apiKey}&alt=sse`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -202,8 +212,8 @@ Use **bold**, *italic*, and __underline__ for emphasis.`;
 app.post('/api/generate-image', async (req, res) => {
   warmUp();
   
-  if (!GOOGLE_API_KEY) {
-    return res.status(500).json({ error: 'GOOGLE_API_KEY not configured' });
+  if (!API_KEYS.image) {
+    return res.status(500).json({ error: 'Image API key not configured' });
   }
 
   try {
@@ -235,7 +245,7 @@ app.post('/api/generate-image', async (req, res) => {
     }
 
     const response = await fetch(
-      `${GEMINI_API_URL}/${MODELS.image}:generateContent?key=${GOOGLE_API_KEY}`,
+      `${GEMINI_API_URL}/${MODELS.image}:generateContent?key=${API_KEYS.image}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -285,15 +295,15 @@ app.post('/api/generate-image', async (req, res) => {
 app.post('/api/web-search', async (req, res) => {
   warmUp();
   
-  if (!GOOGLE_API_KEY) {
-    return res.status(500).json({ error: 'GOOGLE_API_KEY not configured' });
+  if (!API_KEYS.chat) {
+    return res.status(500).json({ error: 'Chat API key not configured for search' });
   }
 
   try {
     const { query } = req.body;
 
     const response = await fetch(
-      `${GEMINI_API_URL}/${MODELS.chat}:generateContent?key=${GOOGLE_API_KEY}`,
+      `${GEMINI_API_URL}/${MODELS.chat}:generateContent?key=${API_KEYS.chat}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -332,8 +342,8 @@ app.post('/api/web-search', async (req, res) => {
 app.post('/api/map-search', async (req, res) => {
   warmUp();
   
-  if (!GOOGLE_API_KEY) {
-    return res.status(500).json({ error: 'GOOGLE_API_KEY not configured' });
+  if (!API_KEYS.chat) {
+    return res.status(500).json({ error: 'Chat API key not configured for map search' });
   }
 
   try {
@@ -354,7 +364,7 @@ app.post('/api/map-search', async (req, res) => {
 Only return valid JSON.`;
 
     const response = await fetch(
-      `${GEMINI_API_URL}/${MODELS.chat}:generateContent?key=${GOOGLE_API_KEY}`,
+      `${GEMINI_API_URL}/${MODELS.chat}:generateContent?key=${API_KEYS.chat}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

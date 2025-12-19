@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, Paperclip, X, MessageSquare, Image, Hammer, Download, Square, ArrowLeft } from "lucide-react";
+import { Send, Loader2, Paperclip, X, MessageSquare, Image, Hammer, Download, Square, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -344,32 +344,31 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
   };
 
   return (
-    <div className="glass-strong rounded-2xl h-[calc(100vh-200px)] min-h-[500px] flex flex-col overflow-hidden relative" style={{ zIndex: 10 }}>
+    <div className="glass-strong rounded-2xl h-[calc(100vh-120px)] min-h-[600px] flex flex-col overflow-hidden relative" style={{ zIndex: 10 }}>
       {/* Header with Mode Selector */}
-      <div className="px-4 py-3 border-b border-primary/20 flex items-center gap-2 justify-between">
+      <div className="px-4 py-3 border-b border-primary/20 flex items-center gap-3">
         {onBack && (
           <Button variant="ghost" size="icon" onClick={onBack} className="text-foreground hover:bg-primary/20 flex-shrink-0">
-            <ArrowLeft className="w-5 h-5" />
+            <Menu className="w-5 h-5" />
           </Button>
         )}
-        <div className="flex gap-2 justify-center flex-1 overflow-x-auto">
+        <div className="flex gap-2 flex-1 justify-center">
           {modes.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => onModeChange?.(id)}
               className={cn(
-                "flex items-center gap-2 px-5 py-2.5 rounded-lg font-sans text-sm transition-all duration-200 whitespace-nowrap min-w-fit",
+                "flex items-center gap-2 px-4 py-2.5 rounded-lg font-sans text-sm transition-all duration-200 flex-shrink-0",
                 mode === id
                   ? "bg-primary text-primary-foreground shadow-gold"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
               )}
             >
               <Icon className="w-4 h-4" />
-              <span>{label}</span>
+              <span className="hidden sm:inline">{label}</span>
             </button>
           ))}
         </div>
-        <div className="w-10 flex-shrink-0" /> {/* Spacer for balance */}
       </div>
 
       {/* File Preview */}
