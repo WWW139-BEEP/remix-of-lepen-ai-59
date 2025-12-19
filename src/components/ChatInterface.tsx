@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Mic, Loader2, Paperclip, X, MessageSquare, Image, Hammer, Download, Volume2, Square, ArrowLeft } from "lucide-react";
+import { Send, Loader2, Paperclip, X, MessageSquare, Image, Hammer, Download, Square, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -75,13 +75,13 @@ function getFileTypeInfo(filename: string, mimeType: string): { type: string; ca
   return { type: 'unknown', category: 'File', canRead: false };
 }
 
-// Get API base URL from fallback config or use Supabase
+// Get API base URL from config
 function getApiBaseUrl(): string {
   const fallbacks = getFallbackUrls();
   if (fallbacks.length > 0) {
     return fallbacks[0];
   }
-  return import.meta.env.VITE_SUPABASE_URL || '';
+  return '';
 }
 
 export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps) => {
@@ -89,8 +89,6 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [isListening, setIsListening] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
   const [mapData, setMapData] = useState<MapData | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -181,26 +179,26 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
 
   const streamChat = useCallback(async (userContent: string, filesContext: string, imageData?: string) => {
     const baseUrl = getApiBaseUrl();
-    const isOptionalBackend = !baseUrl.includes('supabase');
+    
+    if (!baseUrl) {
+      throw new Error('No backend configured. Please set your Render backend URL in Settings.');
+    }
     
     const chatMessages = messages.map((m) => ({ role: m.role, content: m.content }));
     let contextualContent = filesContext ? `[Files]\n${filesContext}\n\n${userContent}` : userContent;
     chatMessages.push({ role: "user", content: contextualContent });
 
-    const endpoint = isOptionalBackend ? `${baseUrl}/api/chat` : `${baseUrl}/functions/v1/chat`;
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (!isOptionalBackend) {
-      headers["Authorization"] = `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`;
-    }
-
-    const response = await fetch(endpoint, {
+    const response = await fetch(`${baseUrl}/api/chat`, {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages: chatMessages, mode, imageData }),
       signal: abortControllerRef.current?.signal,
     });
 
-    if (!response.ok) throw new Error("Failed to get response");
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to get response");
+    }
 
     const contentType = response.headers.get("content-type");
     if (contentType?.includes("application/json")) {
@@ -254,27 +252,37 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
 
   const generateImage = useCallback(async (prompt: string, imageData?: string) => {
     const baseUrl = getApiBaseUrl();
-    const isOptionalBackend = !baseUrl.includes('supabase');
     
-    const endpoint = isOptionalBackend ? `${baseUrl}/api/generate-image` : `${baseUrl}/functions/v1/generate-image`;
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (!isOptionalBackend) {
-      headers["Authorization"] = `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`;
+    if (!baseUrl) {
+      throw new Error('No backend configured. Please set your Render backend URL in Settings.');
     }
 
-    const response = await fetch(endpoint, {
+    const response = await fetch(`${baseUrl}/api/generate-image`, {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt, imageData }),
       signal: abortControllerRef.current?.signal,
     });
 
-    if (!response.ok) throw new Error("Failed to generate image");
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to generate image");
+    }
     return await response.json();
   }, []);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
+
+    const baseUrl = getApiBaseUrl();
+    if (!baseUrl) {
+      toast({ 
+        title: "Backend not configured", 
+        description: "Please set your Render backend URL in Settings", 
+        variant: "destructive" 
+      });
+      return;
+    }
 
     const userContent = input.trim();
     let filesContext = "";
@@ -338,19 +346,19 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
   return (
     <div className="glass-strong rounded-2xl h-[calc(100vh-200px)] min-h-[500px] flex flex-col overflow-hidden relative" style={{ zIndex: 10 }}>
       {/* Header with Mode Selector */}
-      <div className="px-4 py-3 border-b border-primary/20 flex items-center gap-2 justify-between flex-wrap">
+      <div className="px-4 py-3 border-b border-primary/20 flex items-center gap-2 justify-between">
         {onBack && (
-          <Button variant="ghost" size="icon" onClick={onBack} className="text-foreground hover:bg-primary/20">
+          <Button variant="ghost" size="icon" onClick={onBack} className="text-foreground hover:bg-primary/20 flex-shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </Button>
         )}
-        <div className="flex gap-2 justify-center flex-1 flex-wrap">
+        <div className="flex gap-2 justify-center flex-1 overflow-x-auto">
           {modes.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => onModeChange?.(id)}
               className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-lg font-sans text-sm transition-all duration-200",
+                "flex items-center gap-2 px-5 py-2.5 rounded-lg font-sans text-sm transition-all duration-200 whitespace-nowrap min-w-fit",
                 mode === id
                   ? "bg-primary text-primary-foreground shadow-gold"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -361,6 +369,7 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
             </button>
           ))}
         </div>
+        <div className="w-10 flex-shrink-0" /> {/* Spacer for balance */}
       </div>
 
       {/* File Preview */}
@@ -466,7 +475,7 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
               <Square className="w-5 h-5" />
             </Button>
           ) : (
-            <Button onClick={handleSend} disabled={!input.trim()} className="h-[50px] px-4 bg-primary hover:bg-primary/90 shadow-gold">
+            <Button onClick={handleSend} disabled={!input.trim()} className="h-[50px] px-4 bg-primary hover:bg-primary/90">
               <Send className="w-5 h-5" />
             </Button>
           )}

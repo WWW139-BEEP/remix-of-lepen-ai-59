@@ -2004,11 +2004,16 @@
                 ? { prompt: content, imageData: imageData }
                 : { messages: apiMessages, mode: mode === 'build' ? 'code' : mode };
 
-            const response = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/${endpoint}`, {
+            // Use optional backend URL from settings or fallback
+            const backendUrl = state.fallbackUrl || localStorage.getItem('lepen_backend_url') || '';
+            if (!backendUrl) {
+                throw new Error('No backend configured. Please set your Render backend URL in Settings.');
+            }
+            
+            const response = await fetch(`${backendUrl}/api/${endpoint}`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(body),
                 signal: signal
