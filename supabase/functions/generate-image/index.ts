@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, imageData } = await req.json();
+    const { prompt, imageData, size } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -27,6 +27,17 @@ serve(async (req) => {
 
     console.log("Generating image with prompt:", prompt);
     console.log("Has image data:", !!imageData);
+    console.log("Image size:", size || "1024x1024");
+
+    // Determine aspect ratio description for prompt
+    let aspectHint = "";
+    if (size === "1536x1024") {
+      aspectHint = " Generate in 16:9 landscape aspect ratio.";
+    } else if (size === "1024x1536") {
+      aspectHint = " Generate in 9:16 portrait aspect ratio.";
+    } else {
+      aspectHint = " Generate in 1:1 square aspect ratio.";
+    }
 
     // Build message content based on whether we have an image to edit
     let messageContent: any;
@@ -35,7 +46,7 @@ serve(async (req) => {
       messageContent = [
         {
           type: "text",
-          text: prompt
+          text: prompt + aspectHint
         },
         {
           type: "image_url",
@@ -45,8 +56,8 @@ serve(async (req) => {
         }
       ];
     } else {
-      // Text-only generation
-      messageContent = prompt;
+      // Text-only generation with aspect ratio hint
+      messageContent = prompt + aspectHint;
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
