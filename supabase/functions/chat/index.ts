@@ -65,26 +65,21 @@ const tools = [
   }
 ];
 
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+
 // Execute web search using Gemini with grounding
 async function executeWebSearch(query: string, apiKey: string): Promise<string> {
   console.log("Executing web search:", query);
   
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const response = await fetch(`${GEMINI_API_URL}/gemini-2.0-flash:generateContent?key=${apiKey}`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-3-pro-preview",
-      messages: [
-        { 
-          role: "system", 
-          content: "You are a web search assistant. Search for and provide accurate, up-to-date information with citations. Format sources as [Source Name](URL) when available." 
-        },
-        { role: "user", content: query }
-      ],
-      tools: [{ "googleSearch": {} }]
+      contents: [{ parts: [{ text: query }] }],
+      tools: [{ googleSearch: {} }],
+      systemInstruction: {
+        parts: [{ text: "You are a web search assistant. Search for and provide accurate, up-to-date information with citations. Format sources as [Source Name](URL) when available." }]
+      }
     }),
   });
 
@@ -95,7 +90,7 @@ async function executeWebSearch(query: string, apiKey: string): Promise<string> 
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || "No search results found.";
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "No search results found.";
 }
 
 // Get location coordinates
@@ -123,18 +118,12 @@ Respond with a JSON object in this exact format:
 
 IMPORTANT: Only respond with valid JSON. No markdown code blocks.`;
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const response = await fetch(`${GEMINI_API_URL}/gemini-2.0-flash:generateContent?key=${apiKey}`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-3-pro-preview",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Find these locations: ${places.join(", ")}` }
-      ],
+      contents: [{ parts: [{ text: `Find these locations: ${places.join(", ")}` }] }],
+      systemInstruction: { parts: [{ text: systemPrompt }] }
     }),
   });
 
@@ -143,7 +132,7 @@ IMPORTANT: Only respond with valid JSON. No markdown code blocks.`;
   }
 
   const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || "";
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
   
   try {
     let cleanContent = content.trim();
@@ -160,22 +149,15 @@ IMPORTANT: Only respond with valid JSON. No markdown code blocks.`;
 async function getWeatherData(location: string, apiKey: string): Promise<string> {
   console.log("Getting weather for:", location);
   
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const response = await fetch(`${GEMINI_API_URL}/gemini-2.0-flash:generateContent?key=${apiKey}`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-3-pro-preview",
-      messages: [
-        { 
-          role: "system", 
-          content: "You are a weather assistant. Provide current weather information including temperature, conditions, humidity, and any relevant weather alerts. Be concise and accurate." 
-        },
-        { role: "user", content: `What is the current weather in ${location}?` }
-      ],
-      tools: [{ "googleSearch": {} }]
+      contents: [{ parts: [{ text: `What is the current weather in ${location}?` }] }],
+      tools: [{ googleSearch: {} }],
+      systemInstruction: {
+        parts: [{ text: "You are a weather assistant. Provide current weather information including temperature, conditions, humidity, and any relevant weather alerts. Be concise and accurate." }]
+      }
     }),
   });
 
@@ -184,21 +166,19 @@ async function getWeatherData(location: string, apiKey: string): Promise<string>
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || `Weather data unavailable for ${location}.`;
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || `Weather data unavailable for ${location}.`;
 }
 
 // Process messages to handle images for vision
 function processMessagesForVision(messages: any[]): any[] {
   return messages.map((msg: any) => {
     if (msg.role === "user" && typeof msg.content === "string") {
-      // Check if the message contains base64 image data
       const base64ImageRegex = /data:image\/(jpeg|jpg|png|gif|webp);base64,([A-Za-z0-9+/=]+)/g;
       const matches = [...msg.content.matchAll(base64ImageRegex)];
       
       if (matches.length > 0) {
         console.log("Found", matches.length, "images in message");
         
-        // Extract text content (remove base64 data and cleanup)
         let textContent = msg.content;
         textContent = textContent.replace(base64ImageRegex, '').trim();
         textContent = textContent.replace(/\[Image:.*?\]\nAnalyze this image:/g, '').trim();
@@ -207,32 +187,34 @@ function processMessagesForVision(messages: any[]): any[] {
         textContent = textContent.replace(/\[File Type:.*?\]\n?/g, '').trim();
         textContent = textContent.replace(/\n{2,}/g, '\n').trim();
         
-        // Build multimodal content array
-        const content: any[] = [];
+        const parts: any[] = [];
         
-        // Add images first
         for (const match of matches) {
           const mimeType = `image/${match[1] === 'jpg' ? 'jpeg' : match[1]}`;
-          content.push({
-            type: "image_url",
-            image_url: {
-              url: `data:${mimeType};base64,${match[2]}`
+          parts.push({
+            inlineData: {
+              mimeType,
+              data: match[2]
             }
           });
         }
         
-        // Add text content
-        content.push({
-          type: "text",
-          text: textContent || "Please analyze this image and describe what you see in detail."
-        });
+        parts.push({ text: textContent || "Please analyze this image and describe what you see in detail." });
         
-        console.log("Created multimodal message with", matches.length, "images and text:", textContent.substring(0, 100));
-        return { role: msg.role, content };
+        console.log("Created multimodal message with", matches.length, "images");
+        return { role: msg.role, parts };
       }
     }
-    return msg;
+    return { role: msg.role, parts: [{ text: msg.content }] };
   });
+}
+
+// Convert messages to Gemini format
+function convertToGeminiFormat(messages: any[]): any[] {
+  return messages.map(msg => ({
+    role: msg.role === "assistant" ? "model" : "user",
+    parts: msg.parts || [{ text: msg.content }]
+  }));
 }
 
 serve(async (req) => {
@@ -242,15 +224,14 @@ serve(async (req) => {
 
   try {
     const { messages, mode } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!GOOGLE_GEMINI_API_KEY) {
+      throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
     console.log("Chat request - mode:", mode, "messages:", messages.length);
 
-    // Build system prompt based on mode
     const fileHandlingInstructions = `
 When files are attached:
 1. First identify the file type from its extension (e.g., .jpg, .py, .txt)
@@ -286,26 +267,21 @@ You have access to web_search if you need reference information for image prompt
     };
 
     const systemPrompt = systemPrompts[mode] || systemPrompts.chat;
-    const model = mode === "images" ? "google/gemini-2.5-flash" : "google/gemini-3-pro-preview";
+    const modelName = mode === "images" ? "gemini-2.0-flash" : "gemini-2.0-flash";
 
-    // Process messages to handle images properly
     const processedMessages = processMessagesForVision(messages);
+    const geminiMessages = convertToGeminiFormat(processedMessages);
 
     // First call to check if tools are needed
-    const initialResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const initialResponse = await fetch(`${GEMINI_API_URL}/${modelName}:generateContent?key=${GOOGLE_GEMINI_API_KEY}`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...processedMessages,
-        ],
-        tools: mode !== "images" ? tools : undefined,
-        tool_choice: mode !== "images" ? "auto" : undefined,
+        contents: geminiMessages,
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        tools: mode !== "images" ? [
+          { functionDeclarations: tools.map(t => t.function) }
+        ] : undefined,
       }),
     });
 
@@ -316,14 +292,8 @@ You have access to web_search if you need reference information for image prompt
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (initialResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       const errorText = await initialResponse.text();
-      console.error("AI gateway error:", initialResponse.status, errorText);
+      console.error("AI error:", initialResponse.status, errorText);
       return new Response(JSON.stringify({ error: "AI service error: " + errorText }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -331,56 +301,40 @@ You have access to web_search if you need reference information for image prompt
     }
 
     const initialData = await initialResponse.json();
-    const assistantMessage = initialData.choices?.[0]?.message;
+    const candidate = initialData.candidates?.[0];
+    const functionCall = candidate?.content?.parts?.find((p: any) => p.functionCall);
 
     // Check if tool calls are requested
-    if (assistantMessage?.tool_calls && assistantMessage.tool_calls.length > 0) {
-      console.log("Tool calls requested:", assistantMessage.tool_calls);
+    if (functionCall) {
+      console.log("Tool call requested:", functionCall.functionCall);
       
-      const toolResults: any[] = [];
+      const functionName = functionCall.functionCall.name;
+      const args = functionCall.functionCall.args || {};
+      
+      let result: string | any = "";
       let mapData = null;
       
-      for (const toolCall of assistantMessage.tool_calls) {
-        const functionName = toolCall.function.name;
-        const args = JSON.parse(toolCall.function.arguments || "{}");
-        
-        let result: string | any = "";
-        
-        if (functionName === "web_search") {
-          result = await executeWebSearch(args.query, LOVABLE_API_KEY);
-        } else if (functionName === "get_location") {
-          const locationData = await getLocationData(args.places || [], args.include_directions || false, LOVABLE_API_KEY);
-          mapData = locationData;
-          result = JSON.stringify(locationData);
-        } else if (functionName === "get_weather") {
-          result = await getWeatherData(args.location, LOVABLE_API_KEY);
-        }
-        
-        toolResults.push({
-          role: "tool",
-          tool_call_id: toolCall.id,
-          content: typeof result === "string" ? result : JSON.stringify(result)
-        });
+      if (functionName === "web_search") {
+        result = await executeWebSearch(args.query, GOOGLE_GEMINI_API_KEY);
+      } else if (functionName === "get_location") {
+        const locationData = await getLocationData(args.places || [], args.include_directions || false, GOOGLE_GEMINI_API_KEY);
+        mapData = locationData;
+        result = JSON.stringify(locationData);
+      } else if (functionName === "get_weather") {
+        result = await getWeatherData(args.location, GOOGLE_GEMINI_API_KEY);
       }
 
       // Make final call with tool results
-      const finalMessages = [
-        { role: "system", content: systemPrompt },
-        ...processedMessages,
-        assistantMessage,
-        ...toolResults
-      ];
-
-      const finalResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const finalResponse = await fetch(`${GEMINI_API_URL}/${modelName}:generateContent?key=${GOOGLE_GEMINI_API_KEY}`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model,
-          messages: finalMessages,
-          stream: true,
+          contents: [
+            ...geminiMessages,
+            { role: "model", parts: [{ functionCall: functionCall.functionCall }] },
+            { role: "user", parts: [{ functionResponse: { name: functionName, response: { content: result } } }] }
+          ],
+          systemInstruction: { parts: [{ text: systemPrompt }] },
         }),
       });
 
@@ -393,69 +347,48 @@ You have access to web_search if you need reference information for image prompt
         });
       }
 
-      // If we have map data, read stream and include map data in response
-      if (mapData) {
-        const reader = finalResponse.body?.getReader();
-        const decoder = new TextDecoder();
-        let fullContent = "";
-        
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-              if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                try {
-                  const parsed = JSON.parse(line.slice(6));
-                  fullContent += parsed.choices?.[0]?.delta?.content || "";
-                } catch {}
-              }
-            }
-          }
-        }
+      const finalData = await finalResponse.json();
+      const finalContent = finalData.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
+      if (mapData) {
         return new Response(JSON.stringify({
-          content: fullContent,
+          content: finalContent,
           mapData
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      return new Response(finalResponse.body, {
+      // Stream-like response for consistency
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          const chunk = `data: ${JSON.stringify({ choices: [{ delta: { content: finalContent } }] })}\n\n`;
+          controller.enqueue(encoder.encode(chunk));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        }
+      });
+
+      return new Response(stream, {
         headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
       });
     }
 
-    // No tool calls - stream regular response
-    const streamResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...processedMessages,
-        ],
-        stream: true,
-      }),
+    // No tool calls - return regular response as stream
+    const content = candidate?.content?.parts?.[0]?.text || "";
+    
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        const chunk = `data: ${JSON.stringify({ choices: [{ delta: { content: content } }] })}\n\n`;
+        controller.enqueue(encoder.encode(chunk));
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      }
     });
 
-    if (!streamResponse.ok) {
-      const errorText = await streamResponse.text();
-      console.error("Stream error:", errorText);
-      return new Response(JSON.stringify({ error: "AI service error: " + errorText }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    return new Response(streamResponse.body, {
+    return new Response(stream, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (error) {

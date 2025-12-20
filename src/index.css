@@ -183,19 +183,19 @@
   @keyframes nameGlow {
     0% {
       background-position: 0% 50%;
-      filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.8));
+      filter: drop-shadow(0 0 8px #ff3333) drop-shadow(0 0 15px rgba(255, 51, 51, 0.6));
     }
     33% {
       background-position: 50% 50%;
-      filter: drop-shadow(0 0 12px rgba(234, 179, 8, 0.9));
+      filter: drop-shadow(0 0 8px #ffcc00) drop-shadow(0 0 15px rgba(255, 204, 0, 0.6));
     }
     66% {
       background-position: 100% 50%;
-      filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.9));
+      filter: drop-shadow(0 0 8px #3399ff) drop-shadow(0 0 15px rgba(51, 153, 255, 0.6));
     }
     100% {
       background-position: 0% 50%;
-      filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.8));
+      filter: drop-shadow(0 0 8px #ff3333) drop-shadow(0 0 15px rgba(255, 51, 51, 0.6));
     }
   }
 

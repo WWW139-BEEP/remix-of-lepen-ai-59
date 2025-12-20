@@ -5,6 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -12,10 +14,10 @@ serve(async (req) => {
 
   try {
     const { prompt, imageData } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!GOOGLE_GEMINI_API_KEY) {
+      throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
     if (!prompt) {
@@ -28,42 +30,32 @@ serve(async (req) => {
     console.log("Generating image with prompt:", prompt);
     console.log("Has image data:", !!imageData);
 
-    // Build message content based on whether we have an image to edit
-    let messageContent: any;
+    // Build request content based on whether we have an image to edit
+    const parts: any[] = [];
+    
     if (imageData) {
-      // Image editing mode - send both text and image
-      messageContent = [
-        {
-          type: "text",
-          text: prompt
-        },
-        {
-          type: "image_url",
-          image_url: {
-            url: imageData
+      // Extract base64 data from data URL
+      const base64Match = imageData.match(/^data:image\/(\w+);base64,(.+)$/);
+      if (base64Match) {
+        parts.push({
+          inlineData: {
+            mimeType: `image/${base64Match[1]}`,
+            data: base64Match[2]
           }
-        }
-      ];
-    } else {
-      // Text-only generation
-      messageContent = prompt;
+        });
+      }
     }
+    
+    parts.push({ text: prompt });
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch(`${GEMINI_API_URL}?key=${GOOGLE_GEMINI_API_KEY}`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image-preview",
-        messages: [
-          {
-            role: "user",
-            content: messageContent
-          }
-        ],
-        modalities: ["image", "text"]
+        contents: [{ parts }],
+        generationConfig: {
+          responseModalities: ["TEXT", "IMAGE"]
+        }
       }),
     });
 
@@ -74,15 +66,9 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       const errorText = await response.text();
       console.error("Image generation error:", response.status, errorText);
-      return new Response(JSON.stringify({ error: "Image generation failed" }), {
+      return new Response(JSON.stringify({ error: "Image generation failed: " + errorText }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -91,8 +77,19 @@ serve(async (req) => {
     const data = await response.json();
     console.log("Image generation response received");
     
-    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    const textContent = data.choices?.[0]?.message?.content || "Image generated successfully!";
+    // Extract image and text from Gemini response
+    const responseParts = data.candidates?.[0]?.content?.parts || [];
+    let imageUrl = "";
+    let textContent = "Image generated successfully!";
+    
+    for (const part of responseParts) {
+      if (part.inlineData) {
+        imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      }
+      if (part.text) {
+        textContent = part.text;
+      }
+    }
 
     return new Response(JSON.stringify({ 
       imageUrl,
