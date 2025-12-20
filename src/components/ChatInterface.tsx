@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, Paperclip, X, MessageSquare, Image, Code2, Download, Square, Mic, MicOff, RectangleHorizontal, RectangleVertical, Square as SquareIcon, MoreVertical } from "lucide-react";
+import { Send, Loader2, Paperclip, X, MessageSquare, Image, Code2, Download, Square, Mic, MicOff, RectangleHorizontal, RectangleVertical, Square as SquareIcon, MoreVertical, ChevronDown, ChevronUp, Brain } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +28,7 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  thinking?: string;
   image_url?: string;
   created_at: string;
 }
@@ -99,6 +100,7 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [imageQuality, setImageQuality] = useState<"low" | "medium" | "high">("medium");
   const [isListening, setIsListening] = useState(false);
+  const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -194,6 +196,18 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
       default:
         return "Hello! I'm Lepen AI. Ask me anything!";
     }
+  };
+
+  const toggleThinking = (messageId: string) => {
+    setExpandedThinking((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      return newSet;
+    });
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -296,12 +310,14 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
 
     const decoder = new TextDecoder();
     let assistantContent = "";
+    let thinkingContent = "";
     let buffer = "";
 
     const assistantMessage: Message = {
       id: Date.now().toString(),
       role: "assistant",
       content: "",
+      thinking: "",
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, assistantMessage]);
@@ -321,7 +337,16 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
         if (jsonStr === "[DONE]") break;
         try {
           const parsed = JSON.parse(jsonStr);
-          const content = parsed.choices?.[0]?.delta?.content;
+          const delta = parsed.choices?.[0]?.delta;
+          const content = delta?.content;
+          const reasoning = delta?.reasoning_content || delta?.reasoning;
+          
+          if (reasoning) {
+            thinkingContent += reasoning;
+            setMessages((prev) =>
+              prev.map((m) => m.id === assistantMessage.id ? { ...m, thinking: thinkingContent } : m)
+            );
+          }
           if (content) {
             assistantContent += content;
             setMessages((prev) =>
@@ -500,6 +525,28 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
                   ? "bg-primary text-primary-foreground shadow-gold"
                   : "glass border-primary/20 text-foreground"
               )}>
+                {/* Thinking section for assistant messages */}
+                {message.role === "assistant" && message.thinking && (
+                  <div className="mb-3">
+                    <button
+                      onClick={() => toggleThinking(message.id)}
+                      className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Brain className="w-3.5 h-3.5" />
+                      <span>Thinking</span>
+                      {expandedThinking.has(message.id) ? (
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                    {expandedThinking.has(message.id) && (
+                      <div className="mt-2 p-3 bg-muted/30 rounded-lg text-xs text-muted-foreground border border-muted/50 max-h-48 overflow-y-auto">
+                        <pre className="whitespace-pre-wrap font-sans">{message.thinking}</pre>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {message.image_url && (
                   <div className="relative group mb-3">
                     <img src={message.image_url} alt="Generated" className="rounded-lg max-w-full" />
@@ -531,7 +578,7 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
             <div className="glass border-primary/20 px-5 py-3 rounded-2xl flex items-center gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span className="text-sm">
-                {mode === "images" ? "Creating your vision..." : "Refining response..."}
+                {mode === "images" ? "Creating your vision..." : "Thinking..."}
               </span>
             </div>
           </div>
