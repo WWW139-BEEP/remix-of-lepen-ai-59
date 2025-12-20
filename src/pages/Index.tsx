@@ -143,21 +143,21 @@ const Index = () => {
                   href="https://arkadas.netlify.app" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="name-glow font-bold text-base"
+                  className="name-glow"
                   style={{
-                    background: 'linear-gradient(90deg, #ff3333, #ffcc00, #3399ff, #ff3333)',
+                    background: 'linear-gradient(90deg, #ef4444, #eab308, #3b82f6, #ef4444)',
                     backgroundSize: '300% 100%',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text',
-                    animation: 'nameGlow 2s ease-in-out infinite',
+                    animation: 'nameGlow 3s ease-in-out infinite',
                     textDecoration: 'none',
-                    fontWeight: 800,
-                    fontSize: '1.1rem',
-                    letterSpacing: '0.05em',
+                    borderBottom: '2px dotted currentColor',
+                    paddingBottom: '2px',
+                    fontWeight: 600,
                   }}
                 >
-                  𝒜𝑅𝒦𝒜 𝒟𝒜𝒮
+                  {" "}𝒜𝑅𝒦𝒜 𝒟𝒜𝒮{" "}
                 </a>
               </p>
             </div>
@@ -234,21 +234,19 @@ const Index = () => {
               href="https://arkadas.netlify.app" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="name-glow font-bold"
+              className="name-glow"
               style={{
-                background: 'linear-gradient(90deg, #ff3333, #ffcc00, #3399ff, #ff3333)',
+                background: 'linear-gradient(90deg, #ef4444, #eab308, #3b82f6, #ef4444)',
                 backgroundSize: '300% 100%',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
-                animation: 'nameGlow 2s ease-in-out infinite',
+                animation: 'nameGlow 3s ease-in-out infinite',
                 textDecoration: 'none',
-                fontWeight: 800,
-                fontSize: '1rem',
-                letterSpacing: '0.05em',
+                fontWeight: 600,
               }}
             >
-              𝒜𝑅𝒦𝒜 𝒟𝒜𝒮
+              {" "}𝒜𝑅𝒦𝒜 𝒟𝒜𝒮{" "}
             </a>
           </p>
         </footer>
