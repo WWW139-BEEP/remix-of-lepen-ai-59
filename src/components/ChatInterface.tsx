@@ -541,9 +541,29 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
 
       {/* Input */}
       <div className="p-4 border-t border-primary/20">
+        {/* Aspect Ratio Selector - only in image mode, above the input row */}
+        {mode === "images" && (
+          <div className="flex gap-1 justify-center mb-2">
+            {aspectRatios.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setAspectRatio(id)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                  aspectRatio === id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="flex gap-2 items-end">
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" multiple />
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 justify-end">
             {/* Quality selector - only in image mode */}
             {mode === "images" && (
               <DropdownMenu>
@@ -581,7 +601,7 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
           <Button 
             onClick={toggleVoiceInput} 
             className={cn(
-              "h-[50px] px-3 transition-all",
+              "h-[50px] px-3 transition-all self-end",
               isListening 
                 ? "bg-destructive hover:bg-destructive/90 animate-pulse" 
                 : "bg-primary/80 hover:bg-primary"
@@ -589,27 +609,7 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
           >
             {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
           </Button>
-          <div className="flex-1 flex flex-col gap-2">
-            {/* Aspect Ratio Selector - only in image mode */}
-            {mode === "images" && (
-              <div className="flex gap-1 justify-center">
-                {aspectRatios.map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={id}
-                    onClick={() => setAspectRatio(id)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
-                      aspectRatio === id
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    )}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="flex-1">
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -619,17 +619,15 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
               rows={2}
             />
           </div>
-          <div className={cn("flex items-end", mode === "images" && "self-end")}>
-            {isLoading ? (
-              <Button onClick={stopGeneration} className="h-[50px] px-4 bg-destructive hover:bg-destructive/90">
-                <Square className="w-5 h-5" />
-              </Button>
-            ) : (
-              <Button onClick={handleSend} disabled={!input.trim()} className="h-[50px] px-4 bg-primary hover:bg-primary/90">
-                <Send className="w-5 h-5" />
-              </Button>
-            )}
-          </div>
+          {isLoading ? (
+            <Button onClick={stopGeneration} className="h-[50px] px-4 bg-destructive hover:bg-destructive/90 self-end">
+              <Square className="w-5 h-5" />
+            </Button>
+          ) : (
+            <Button onClick={handleSend} disabled={!input.trim()} className="h-[50px] px-4 bg-primary hover:bg-primary/90 self-end">
+              <Send className="w-5 h-5" />
+            </Button>
+          )}
         </div>
       </div>
     </div>
