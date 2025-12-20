@@ -291,7 +291,7 @@ You have access to web_search if you need reference information for image prompt
     // Process messages to handle images properly
     const processedMessages = processMessagesForVision(messages);
 
-    // First call to check if tools are needed
+    // First call to check if tools are needed - with thinking enabled
     const initialResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -306,6 +306,7 @@ You have access to web_search if you need reference information for image prompt
         ],
         tools: mode !== "images" ? tools : undefined,
         tool_choice: mode !== "images" ? "auto" : undefined,
+        include_reasoning: true,
       }),
     });
 
@@ -429,7 +430,7 @@ You have access to web_search if you need reference information for image prompt
       });
     }
 
-    // No tool calls - stream regular response
+    // No tool calls - stream regular response with thinking enabled
     const streamResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -443,6 +444,7 @@ You have access to web_search if you need reference information for image prompt
           ...processedMessages,
         ],
         stream: true,
+        include_reasoning: true,
       }),
     });
 
