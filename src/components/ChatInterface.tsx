@@ -1,5 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, Paperclip, X, MessageSquare, Image, Code2, Download, Square, Mic, MicOff, RectangleHorizontal, RectangleVertical, Square as SquareIcon } from "lucide-react";
+import { Send, Loader2, Paperclip, X, MessageSquare, Image, Code2, Download, Square, Mic, MicOff, RectangleHorizontal, RectangleVertical, Square as SquareIcon, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -91,6 +97,7 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [mapData, setMapData] = useState<MapData | null>(null);
   const [aspectRatio, setAspectRatio] = useState("1:1");
+  const [imageQuality, setImageQuality] = useState<"low" | "medium" | "high">("medium");
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -343,7 +350,7 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
         "Content-Type": "application/json",
         "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
       },
-      body: JSON.stringify({ prompt, imageData, size }),
+      body: JSON.stringify({ prompt, imageData, size, quality: imageQuality }),
       signal: abortControllerRef.current?.signal,
     });
 
@@ -536,9 +543,41 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
       <div className="p-4 border-t border-primary/20">
         <div className="flex gap-2 items-end">
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" multiple />
-          <Button onClick={() => fileInputRef.current?.click()} className="h-[50px] px-3 bg-primary/80 hover:bg-primary">
-            <Paperclip className="w-5 h-5" />
-          </Button>
+          <div className="flex flex-col gap-1">
+            {/* Quality selector - only in image mode */}
+            {mode === "images" && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-8 px-2 bg-muted/50 hover:bg-muted">
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-32">
+                  <DropdownMenuItem 
+                    onClick={() => setImageQuality("low")}
+                    className={cn(imageQuality === "low" && "bg-primary/20")}
+                  >
+                    Low Quality
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setImageQuality("medium")}
+                    className={cn(imageQuality === "medium" && "bg-primary/20")}
+                  >
+                    Medium Quality
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setImageQuality("high")}
+                    className={cn(imageQuality === "high" && "bg-primary/20")}
+                  >
+                    High Quality
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Button onClick={() => fileInputRef.current?.click()} className="h-[50px] px-3 bg-primary/80 hover:bg-primary">
+              <Paperclip className="w-5 h-5" />
+            </Button>
+          </div>
           <Button 
             onClick={toggleVoiceInput} 
             className={cn(
