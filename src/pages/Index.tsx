@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Image, Hammer, Sparkles, Info, Menu, Settings, Home } from "lucide-react";
+import { MessageSquare, Image, Code2, Sparkles, Info, Menu, Settings, Home } from "lucide-react";
 import { LepanLogo } from "@/components/LepanLogo";
 import { SparkleBackground } from "@/components/SparkleEffect";
 import { FeatureCard } from "@/components/FeatureCard";
@@ -34,7 +34,7 @@ const features = [
   },
   {
     id: "code",
-    icon: Hammer,
+    icon: Code2,
     title: "Build Apps",
     description: "Write, debug, and optimize code across multiple programming languages.",
   },
