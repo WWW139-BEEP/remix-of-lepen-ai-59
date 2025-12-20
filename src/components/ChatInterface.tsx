@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, Paperclip, X, MessageSquare, Image, Hammer, Download, Square, Mic, MicOff } from "lucide-react";
+import { Send, Loader2, Paperclip, X, MessageSquare, Image, Code2, Download, Square, Mic, MicOff, RectangleHorizontal, RectangleVertical, Square as SquareIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -35,7 +35,13 @@ interface ChatInterfaceProps {
 const modes = [
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "images", label: "Images", icon: Image },
-  { id: "code", label: "Build", icon: Hammer },
+  { id: "code", label: "Build", icon: Code2 },
+];
+
+const aspectRatios = [
+  { id: "1:1", label: "1:1", icon: SquareIcon, size: "1024x1024" },
+  { id: "16:9", label: "16:9", icon: RectangleHorizontal, size: "1536x1024" },
+  { id: "9:16", label: "9:16", icon: RectangleVertical, size: "1024x1536" },
 ];
 
 interface MapData {
@@ -84,6 +90,7 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [mapData, setMapData] = useState<MapData | null>(null);
+  const [aspectRatio, setAspectRatio] = useState("1:1");
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -327,13 +334,16 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
       throw new Error('Supabase is not configured');
     }
 
+    const selectedRatio = aspectRatios.find(r => r.id === aspectRatio);
+    const size = selectedRatio?.size || "1024x1024";
+
     const response = await fetch(`${baseUrl}/functions/v1/generate-image`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
         "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
       },
-      body: JSON.stringify({ prompt, imageData }),
+      body: JSON.stringify({ prompt, imageData, size }),
       signal: abortControllerRef.current?.signal,
     });
 
@@ -540,7 +550,27 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
           >
             {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
           </Button>
-          <div className="flex-1">
+          <div className="flex-1 flex flex-col gap-2">
+            {/* Aspect Ratio Selector - only in image mode */}
+            {mode === "images" && (
+              <div className="flex gap-1 justify-center">
+                {aspectRatios.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => setAspectRatio(id)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                      aspectRatio === id
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
