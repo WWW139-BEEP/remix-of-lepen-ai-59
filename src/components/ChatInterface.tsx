@@ -509,11 +509,13 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
           <MapView locations={mapData.locations} center={mapData.center} zoom={mapData.zoom} message={mapData.message} />
         )}
         
-        {isLoading && (
+        {isLoading && messages[messages.length - 1]?.role === "user" && (
           <div className="flex justify-start">
             <div className="glass border-primary/20 px-5 py-3 rounded-2xl flex items-center gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm">Thinking...</span>
+              <span className="text-sm">
+                {mode === "images" ? "Creating your vision..." : "Refining response..."}
+              </span>
             </div>
           </div>
         )}

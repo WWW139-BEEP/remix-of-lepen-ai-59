@@ -30,7 +30,45 @@ const renderMath = (text: string): string => {
     }
   });
   
-  // Power notation: ^2, ^{n+1}, etc.
+  // Square root: sqrt(x) or √x
+  text = text.replace(/sqrt\(([^)]+)\)/gi, (_, content) => {
+    try {
+      return katex.renderToString(`\\sqrt{${content}}`, { displayMode: false, throwOnError: false });
+    } catch {
+      return `√(${content})`;
+    }
+  });
+  
+  // Nth root: root(n,x) or nthroot(n,x)
+  text = text.replace(/(?:root|nthroot)\((\d+),\s*([^)]+)\)/gi, (_, n, content) => {
+    try {
+      return katex.renderToString(`\\sqrt[${n}]{${content}}`, { displayMode: false, throwOnError: false });
+    } catch {
+      return `${n}√(${content})`;
+    }
+  });
+  
+  // Unicode root symbol: √x
+  text = text.replace(/√(\w+|\([^)]+\))/g, (_, content) => {
+    const inner = content.startsWith('(') ? content.slice(1, -1) : content;
+    try {
+      return katex.renderToString(`\\sqrt{${inner}}`, { displayMode: false, throwOnError: false });
+    } catch {
+      return `√${content}`;
+    }
+  });
+  
+  // Power notation: ^2, ^{n+1}, x^n, etc.
+  text = text.replace(/(\w+)\^(\{[^}]+\}|\d+)/g, (_, base, exp) => {
+    const exponent = exp.startsWith('{') ? exp.slice(1, -1) : exp;
+    try {
+      return katex.renderToString(`${base}^{${exponent}}`, { displayMode: false, throwOnError: false });
+    } catch {
+      return `${base}<sup>${exponent}</sup>`;
+    }
+  });
+  
+  // Standalone power: ^2, ^{n+1}
   text = text.replace(/\^(\{[^}]+\}|\d+)/g, (_, exp) => {
     const exponent = exp.startsWith('{') ? exp.slice(1, -1) : exp;
     try {

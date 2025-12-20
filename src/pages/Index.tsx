@@ -145,8 +145,8 @@ const Index = () => {
                   rel="noopener noreferrer"
                   className="name-glow"
                   style={{
-                    background: 'linear-gradient(90deg, #22c55e, #3b82f6, #22c55e)',
-                    backgroundSize: '200% 100%',
+                    background: 'linear-gradient(90deg, #ef4444, #eab308, #3b82f6, #ef4444)',
+                    backgroundSize: '300% 100%',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text',
@@ -236,8 +236,8 @@ const Index = () => {
               rel="noopener noreferrer"
               className="name-glow"
               style={{
-                background: 'linear-gradient(90deg, #22c55e, #3b82f6, #22c55e)',
-                backgroundSize: '200% 100%',
+                background: 'linear-gradient(90deg, #ef4444, #eab308, #3b82f6, #ef4444)',
+                backgroundSize: '300% 100%',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
