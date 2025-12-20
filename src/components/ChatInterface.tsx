@@ -580,15 +580,17 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
               rows={2}
             />
           </div>
-          {isLoading ? (
-            <Button onClick={stopGeneration} className="h-[50px] px-4 bg-destructive hover:bg-destructive/90">
-              <Square className="w-5 h-5" />
-            </Button>
-          ) : (
-            <Button onClick={handleSend} disabled={!input.trim()} className="h-[50px] px-4 bg-primary hover:bg-primary/90">
-              <Send className="w-5 h-5" />
-            </Button>
-          )}
+          <div className={cn("flex items-end", mode === "images" && "self-end")}>
+            {isLoading ? (
+              <Button onClick={stopGeneration} className="h-[50px] px-4 bg-destructive hover:bg-destructive/90">
+                <Square className="w-5 h-5" />
+              </Button>
+            ) : (
+              <Button onClick={handleSend} disabled={!input.trim()} className="h-[50px] px-4 bg-primary hover:bg-primary/90">
+                <Send className="w-5 h-5" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
