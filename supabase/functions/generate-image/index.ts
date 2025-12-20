@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, imageData, size } = await req.json();
+    const { prompt, imageData, size, quality } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -28,6 +28,7 @@ serve(async (req) => {
     console.log("Generating image with prompt:", prompt);
     console.log("Has image data:", !!imageData);
     console.log("Image size:", size || "1024x1024");
+    console.log("Image quality:", quality || "medium");
 
     // Determine aspect ratio description for prompt
     let aspectHint = "";
@@ -39,6 +40,16 @@ serve(async (req) => {
       aspectHint = " Generate in 1:1 square aspect ratio.";
     }
 
+    // Determine quality hint for prompt
+    let qualityHint = "";
+    if (quality === "low") {
+      qualityHint = " Generate a simple, low-detail image.";
+    } else if (quality === "high") {
+      qualityHint = " Generate a highly detailed, high-resolution, professional quality image.";
+    } else {
+      qualityHint = " Generate a well-balanced, medium-detail image.";
+    }
+
     // Build message content based on whether we have an image to edit
     let messageContent: any;
     if (imageData) {
@@ -46,7 +57,7 @@ serve(async (req) => {
       messageContent = [
         {
           type: "text",
-          text: prompt + aspectHint
+          text: prompt + aspectHint + qualityHint
         },
         {
           type: "image_url",
@@ -56,8 +67,8 @@ serve(async (req) => {
         }
       ];
     } else {
-      // Text-only generation with aspect ratio hint
-      messageContent = prompt + aspectHint;
+      // Text-only generation with aspect ratio and quality hints
+      messageContent = prompt + aspectHint + qualityHint;
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
