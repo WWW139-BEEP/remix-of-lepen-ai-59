@@ -7,8 +7,7 @@ import { Sparkle } from "./SparkleEffect";
 import { MessageContent } from "./MessageContent";
 import { MapView } from "./MapView";
 import { useToast } from "@/hooks/use-toast";
-import { getBackendUrl } from "@/lib/api-config";
-
+import { supabase } from "@/integrations/supabase/client";
 interface UploadedFile {
   id: string;
   name: string;
@@ -75,11 +74,10 @@ function getFileTypeInfo(filename: string, mimeType: string): { type: string; ca
   return { type: 'unknown', category: 'File', canRead: false };
 }
 
-// Get API base URL from config
-function getApiBaseUrl(): string {
-  return getBackendUrl();
+// Get Supabase URL for edge functions
+function getSupabaseUrl(): string {
+  return import.meta.env.VITE_SUPABASE_URL || '';
 }
-
 export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -157,27 +155,6 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
     }
   }, [isListening, toast]);
 
-  // Cold-start prevention - ping backend every 5 minutes
-  useEffect(() => {
-    const baseUrl = getApiBaseUrl();
-    if (!baseUrl) return;
-
-    const pingBackend = async () => {
-      try {
-        await fetch(`${baseUrl}/api/health`, { method: 'GET' });
-      } catch {
-        // Silently fail - just keeping it warm
-      }
-    };
-
-    // Initial ping
-    pingBackend();
-
-    // Ping every 5 minutes (300000ms)
-    const interval = setInterval(pingBackend, 300000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   // Save to session storage for download
   useEffect(() => {
@@ -262,20 +239,29 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
   }, []);
 
   const streamChat = useCallback(async (userContent: string, filesContext: string, imageData?: string) => {
-    const baseUrl = getApiBaseUrl();
+    const baseUrl = getSupabaseUrl();
     
     if (!baseUrl) {
-      throw new Error('No backend configured. Please set your Render backend URL in Settings.');
+      throw new Error('Supabase is not configured');
     }
     
     const chatMessages = messages.map((m) => ({ role: m.role, content: m.content }));
     let contextualContent = filesContext ? `[Files]\n${filesContext}\n\n${userContent}` : userContent;
+    
+    // If there's image data, include it in the content
+    if (imageData) {
+      contextualContent = `${imageData}\nAnalyze this image:\n${contextualContent}`;
+    }
+    
     chatMessages.push({ role: "user", content: contextualContent });
 
-    const response = await fetch(`${baseUrl}/api/chat`, {
+    const response = await fetch(`${baseUrl}/functions/v1/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: chatMessages, mode, imageData }),
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
+      },
+      body: JSON.stringify({ messages: chatMessages, mode }),
       signal: abortControllerRef.current?.signal,
     });
 
@@ -335,15 +321,18 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
   }, [messages, mode]);
 
   const generateImage = useCallback(async (prompt: string, imageData?: string) => {
-    const baseUrl = getApiBaseUrl();
+    const baseUrl = getSupabaseUrl();
     
     if (!baseUrl) {
-      throw new Error('No backend configured. Please set your Render backend URL in Settings.');
+      throw new Error('Supabase is not configured');
     }
 
-    const response = await fetch(`${baseUrl}/api/generate-image`, {
+    const response = await fetch(`${baseUrl}/functions/v1/generate-image`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
+      },
       body: JSON.stringify({ prompt, imageData }),
       signal: abortControllerRef.current?.signal,
     });
@@ -358,11 +347,11 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
-    const baseUrl = getApiBaseUrl();
+    const baseUrl = getSupabaseUrl();
     if (!baseUrl) {
       toast({ 
-        title: "Backend not configured", 
-        description: "Please set your Render backend URL in Settings", 
+        title: "Configuration error", 
+        description: "Supabase is not configured", 
         variant: "destructive" 
       });
       return;

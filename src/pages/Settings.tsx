@@ -235,7 +235,27 @@ const Settings = () => {
 
         {/* Footer */}
         <footer className="text-center mt-8 text-foreground/50 font-sans text-sm">
-          <p>&copy; {new Date().getFullYear()} Lepen AI - Intelligence Illuminated</p>
+          <p>
+            &copy; {new Date().getFullYear()} Lepen AI - Built by{" "}
+            <a 
+              href="https://arkadas.netlify.app" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="name-glow"
+              style={{
+                background: 'linear-gradient(90deg, #22c55e, #3b82f6, #22c55e)',
+                backgroundSize: '200% 100%',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                animation: 'nameGlow 3s ease-in-out infinite',
+                textDecoration: 'none',
+                fontWeight: 600,
+              }}
+            >
+              {" "}𝒜𝑅𝒦𝒜 𝒟𝒜𝒮{" "}
+            </a>
+          </p>
         </footer>
       </div>
     </div>
