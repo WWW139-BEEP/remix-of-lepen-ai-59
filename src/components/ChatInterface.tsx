@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, Paperclip, X, MessageSquare, Image, Code2, Download, Square, Mic, MicOff, RectangleHorizontal, RectangleVertical, Square as SquareIcon, MoreVertical, ChevronDown, ChevronUp, Brain } from "lucide-react";
+import { Send, Loader2, Paperclip, X, MessageSquare, Image, Code2, Download, Square, Mic, MicOff, RectangleHorizontal, RectangleVertical, Square as SquareIcon, MoreVertical, ChevronDown, ChevronUp, Brain, FileCode, AppWindow } from "lucide-react";
+import { PenCursor } from "./PenCursor";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,8 +43,11 @@ interface ChatInterfaceProps {
 const modes = [
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "images", label: "Images", icon: Image },
-  { id: "code", label: "Build", icon: Code2 },
+  { id: "code", label: "Dev", icon: Code2 },
 ];
+
+type DevSubMode = "write" | "create";
+
 
 const aspectRatios = [
   { id: "1:1", label: "1:1", icon: SquareIcon, size: "1024x1024" },
@@ -101,6 +105,8 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
   const [imageQuality, setImageQuality] = useState<"low" | "medium" | "high">("medium");
   const [isListening, setIsListening] = useState(false);
   const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
+  const [devSubMode, setDevSubMode] = useState<DevSubMode>("write");
+  const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -192,7 +198,9 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
       case "images":
         return "Describe the image you'd like to create, and I'll generate it for you!";
       case "code":
-        return "I'm ready to help you build, debug, or explain code. What would you like to create?";
+        return devSubMode === "create" 
+          ? "Describe the app you want to build and I'll create it with a live preview!"
+          : "I'm ready to help you write, debug, or explain code. What would you like to create?";
       default:
         return "Hello! I'm Lepen AI. Ask me anything!";
     }
@@ -321,6 +329,7 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, assistantMessage]);
+    setIsStreaming(true);
 
     while (true) {
       const { done, value } = await reader.read();
@@ -356,6 +365,7 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
         } catch {}
       }
     }
+    setIsStreaming(false);
     return assistantContent;
   }, [messages, mode]);
 
@@ -481,6 +491,36 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
         </div>
       </div>
 
+      {/* Dev Mode Submenu */}
+      {mode === "code" && (
+        <div className="px-4 py-2 border-b border-primary/20 flex justify-center gap-2">
+          <button
+            onClick={() => setDevSubMode("write")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all",
+              devSubMode === "write"
+                ? "bg-accent text-accent-foreground"
+                : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <FileCode className="w-3.5 h-3.5" />
+            Write Codes
+          </button>
+          <button
+            onClick={() => setDevSubMode("create")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all",
+              devSubMode === "create"
+                ? "bg-accent text-accent-foreground"
+                : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <AppWindow className="w-3.5 h-3.5" />
+            Create Apps
+          </button>
+        </div>
+      )}
+
       {/* File Preview */}
       {uploadedFiles.length > 0 && (
         <div className="px-4 py-3 border-b border-primary/20 bg-muted/30">
@@ -563,7 +603,10 @@ export const ChatInterface = ({ mode, onModeChange, onBack }: ChatInterfaceProps
                     </button>
                   </div>
                 )}
-                <MessageContent content={message.content} isAssistant={message.role === "assistant"} />
+                <span className="inline">
+                  <MessageContent content={message.content} isAssistant={message.role === "assistant"} />
+                  {message.role === "assistant" && isStreaming && messages[messages.length - 1]?.id === message.id && <PenCursor />}
+                </span>
               </div>
             </div>
           ))

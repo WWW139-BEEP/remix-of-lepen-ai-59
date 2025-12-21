@@ -227,6 +227,33 @@
     animation: nameGlow 3s ease-in-out infinite;
   }
 
+  @keyframes penFlicker {
+    0% {
+      color: #22c55e;
+      filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.8));
+    }
+    25% {
+      color: #3b82f6;
+      filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.8));
+    }
+    50% {
+      color: #ef4444;
+      filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.8));
+    }
+    75% {
+      color: #f97316;
+      filter: drop-shadow(0 0 4px rgba(249, 115, 22, 0.8));
+    }
+    100% {
+      color: #22c55e;
+      filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.8));
+    }
+  }
+
+  .animate-pen-flicker {
+    animation: penFlicker 0.8s ease-in-out infinite;
+  }
+
   .delay-100 { animation-delay: 0.1s; }
   .delay-200 { animation-delay: 0.2s; }
   .delay-300 { animation-delay: 0.3s; }

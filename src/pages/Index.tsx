@@ -35,8 +35,8 @@ const features = [
   {
     id: "code",
     icon: Code2,
-    title: "Build Apps",
-    description: "Write, debug, and optimize code across multiple programming languages.",
+    title: "Dev",
+    description: "Write codes or create full apps with live preview across multiple programming languages.",
   },
 ];
 
